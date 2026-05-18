@@ -2,7 +2,9 @@
 
 Bone age assessment from hand radiographs using the [ianpan/bone-age](https://huggingface.co/ianpan/bone-age) deep learning model — a ConvNeXtV2-tiny 3-model ensemble trained on the RSNA Pediatric Bone Age 2017 dataset (14,036 left-hand PA radiographs, MAE 4.16 months).
 
-![](example.png)
+<p align="center">
+  <img src="bone-age.png" width="600" alt="Bone age assessment screenshot">
+</p>
 
 ## Disclaimer
 
@@ -32,7 +34,7 @@ python bone-age.py \
   --patient "Patient Example" \
   --dob 2023-07-17 \
   --sex female \
-  --image example.png
+  --image example.tif
 ```
 
 | Flag | Default | Description |
@@ -41,7 +43,7 @@ python bone-age.py \
 | `--dob` | `2023-07-17` | Date of birth (`YYYY-MM-DD`) |
 | `--sex` | `female` | `male` or `female` |
 | `--exam-date` | today | Exam date (`YYYY-MM-DD`) |
-| `--image` | `example.png` | Path to hand X-ray image (PNG) |
+| `--image` | `example.tif` | Path to hand X-ray image (PNG/TIFF) |
 
 The script preprocesses the image via histogram matching against the model's reference, runs inference, saves `{image}_result.md` to disk, and prints the report to the terminal.
 

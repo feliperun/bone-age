@@ -6,9 +6,9 @@ __pycache__/
 venv/
 .env
 
-# Patient images — never commit
+# Patient images — never commit (except cover)
 *.png
-!example.png
+!bone-age.png
 
 # Generated output
 *_result.md

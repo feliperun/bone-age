@@ -1,0 +1,15 @@
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+
+# Patient images — never commit
+*.png
+!example.png
+
+# Generated output
+*_result.md
+*_processed.png

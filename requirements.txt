@@ -1,0 +1,5 @@
+torch>=2.0
+opencv-python>=4.8
+scikit-image>=0.21
+transformers>=4.36
+huggingface-hub>=0.20

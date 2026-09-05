@@ -21,12 +21,12 @@ const pt = {
   "nav.langEn": "English",
 
   "hero.eyebrow": "INTELIGÊNCIA ARTIFICIAL · PROCESSAMENTO LOCAL",
-  "hero.title": "Idade óssea.<br /><span>No seu navegador.</span>",
+  "hero.title": "Idade óssea. <br /><span>No seu navegador.</span>",
   "hero.description":
-    "Da radiografia à estimativa de maturação óssea.<br />Seus arquivos ficam com você, do início ao fim.",
+    "Da radiografia à estimativa de maturação óssea. <br />Seus arquivos ficam com você, do início ao fim.",
   "hero.localTitle": "Seu dispositivo. Seus dados.",
   "hero.localText":
-    "Sem upload para servidores.<br />Sem cadastro. Sem rastreamento.",
+    "Sem upload para servidores. <br />Sem cadastro. Sem rastreamento.",
 
   "workspace.title": "Nova análise",
   "workspace.badge": "USO EXPERIMENTAL",
@@ -124,9 +124,9 @@ const pt = {
     "{model} · revisão {revision} · ONNX FP32 · WebAssembly/CPU · {seconds} s · redes: {folds} meses · recorte: {crop} · sexo: {sex}.",
 
   "about.eyebrow": "TRANSPARÊNCIA POR PRINCÍPIO",
-  "about.title": "O que acontece<br />com a sua imagem?",
+  "about.title": "O que acontece <br />com a sua imagem?",
   "about.text":
-    "Ela permanece na memória desta página.<br />Ao recarregar ou fechar a aba, os dados da análise são descartados.",
+    "Ela permanece na memória desta página. <br />Ao recarregar ou fechar a aba, os dados da análise são descartados.",
   "about.reset": "Descartar análise atual ↗",
   "faq.q1": "Como a estimativa é calculada?",
   "faq.a1":
@@ -312,11 +312,11 @@ const en: Record<Key, string> = {
   "nav.langEn": "English",
 
   "hero.eyebrow": "ARTIFICIAL INTELLIGENCE · LOCAL PROCESSING",
-  "hero.title": "Bone age.<br /><span>In your browser.</span>",
+  "hero.title": "Bone age. <br /><span>In your browser.</span>",
   "hero.description":
-    "From the radiograph to a bone maturation estimate.<br />Your files stay with you, start to finish.",
+    "From the radiograph to a bone maturation estimate. <br />Your files stay with you, start to finish.",
   "hero.localTitle": "Your device. Your data.",
-  "hero.localText": "No server uploads.<br />No sign-up. No tracking.",
+  "hero.localText": "No server uploads. <br />No sign-up. No tracking.",
 
   "workspace.title": "New analysis",
   "workspace.badge": "EXPERIMENTAL USE",
@@ -413,9 +413,9 @@ const en: Record<Key, string> = {
     "{model} · revision {revision} · ONNX FP32 · WebAssembly/CPU · {seconds} s · networks: {folds} months · crop: {crop} · sex: {sex}.",
 
   "about.eyebrow": "TRANSPARENCY BY PRINCIPLE",
-  "about.title": "What happens<br />to your image?",
+  "about.title": "What happens <br />to your image?",
   "about.text":
-    "It stays in this page's memory.<br />Reloading or closing the tab discards the analysis data.",
+    "It stays in this page's memory. <br />Reloading or closing the tab discards the analysis data.",
   "about.reset": "Discard current analysis ↗",
   "faq.q1": "How is the estimate computed?",
   "faq.a1":

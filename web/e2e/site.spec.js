@@ -142,15 +142,21 @@ test("small screens neither overflow nor overlap", async ({ page }) => {
         (typeof el.className === "string" && el.className) ||
         el.tagName.toLowerCase();
       const boxes = [...document.querySelectorAll("main *, header *")]
-        .filter(
-          (el) =>
+        .filter((el) => {
+          const style = getComputedStyle(el);
+          return (
             // Collapsed <details> content and anything else not on screen is
             // not a layout problem.
             el.checkVisibility({ contentVisibilityAuto: true }) &&
-            getComputedStyle(el).position === "static" &&
+            style.position === "static" &&
+            // Inline boxes share lines by design, and an SVG's paths are drawn
+            // on top of each other on purpose.
+            !style.display.startsWith("inline") &&
+            el.namespaceURI === "http://www.w3.org/1999/xhtml" &&
             el.getBoundingClientRect().height > 0 &&
-            !el.querySelector("*"),
-        )
+            !el.querySelector("*")
+          );
+        })
         .map((el) => ({ tag: name(el), box: el.getBoundingClientRect() }));
       const hits = [];
       for (let i = 0; i < boxes.length; i++)

@@ -408,6 +408,7 @@ const DEMO = {
   type: "image/tiff",
   sex: "female",
   dob: "2023-07-17",
+  examDate: "2026-05-16",
 };
 el("demo").addEventListener("click", () => {
   if (busy) return;
@@ -425,11 +426,17 @@ el("demo").addEventListener("click", () => {
     if (!image) return;
     sex.value = DEMO.sex;
     dob.value = DEMO.dob;
+    exam.value = DEMO.examDate;
     confirmed.checked = true;
     refresh();
     // run() clears the message area, so the explanation goes after it.
     run("infer");
-    notice(t("msg.demoLoaded", { date: localDate(DEMO.dob) }));
+    notice(
+      t("msg.demoLoaded", {
+        dob: localDate(DEMO.dob),
+        exam: localDate(DEMO.examDate),
+      }),
+    );
   })();
 });
 el("prepare").addEventListener("click", () => run("prepare"));

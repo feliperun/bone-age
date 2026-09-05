@@ -138,6 +138,7 @@ test("the sample radiograph loads its data and starts the analysis", async ({
   await expect(page.locator("#file-info")).toContainText("841 \u00d7 1035");
   await expect(page.locator("#sex")).toHaveValue("female");
   await expect(page.locator("#dob")).toHaveValue("2023-07-17");
+  await expect(page.locator("#exam-date")).toHaveValue("2026-05-16");
   await expect(page.locator("#confirm-hand")).toBeChecked();
   // It goes straight into the analysis, and says where the data came from.
   await expect(page.locator("#progress-area")).toBeVisible();

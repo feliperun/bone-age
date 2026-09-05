@@ -164,7 +164,7 @@ const pt = {
   "demo.hint": "Sem uma radiografia agora?",
   "demo.button": "Analisar um exemplo",
   "msg.demoLoaded":
-    "Exemplo do repositório: mão esquerda, sexo feminino, nascimento em {date}. As três redes vão rodar neste navegador; no primeiro uso, isso inclui baixar ~340 MB de pesos.",
+    "Exemplo do repositório: mão esquerda, sexo feminino, nascimento em {dob}, exame em {exam}. As três redes vão rodar neste navegador; no primeiro uso, isso inclui baixar ~340 MB de pesos.",
   "msg.demoFailed":
     "Não foi possível carregar a radiografia de exemplo. Verifique a conexão e tente novamente.",
   "msg.checkDates": "Verifique as datas",
@@ -453,7 +453,7 @@ const en: Record<Key, string> = {
   "demo.hint": "No radiograph at hand?",
   "demo.button": "Analyse a sample",
   "msg.demoLoaded":
-    "Repository sample: left hand, female, born on {date}. The three networks will run in this browser; on first use that includes downloading about 340 MB of weights.",
+    "Repository sample: left hand, female, born on {dob}, examined on {exam}. The three networks will run in this browser; on first use that includes downloading about 340 MB of weights.",
   "msg.demoFailed":
     "The sample radiograph could not be loaded. Check your connection and try again.",
   "msg.checkDates": "Check the dates",

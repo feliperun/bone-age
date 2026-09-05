@@ -803,7 +803,7 @@ function colorSpaceOf(components: number): string {
 
 /* --------------------------------------------------------- byte assembly */
 
-function latin1Bytes(text: string): Uint8Array {
+function latin1Bytes(text: string): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(text.length);
   for (let i = 0; i < text.length; i++) out[i] = text.charCodeAt(i) & 0xff;
   return out;
@@ -814,7 +814,7 @@ interface PdfObject {
   stream?: Uint8Array;
 }
 
-function serialize(objects: PdfObject[]): Uint8Array {
+function serialize(objects: PdfObject[]): Uint8Array<ArrayBuffer> {
   const chunks: Uint8Array[] = [];
   let length = 0;
   const push = (bytes: Uint8Array) => {
@@ -867,7 +867,9 @@ const INFO = 5;
 const IMAGE = 6;
 
 /** Builds the one- or two-page PDF report and returns its bytes. */
-export function buildReportPdf(input: ReportInput): Uint8Array {
+// Uint8Array<ArrayBuffer>, not the ArrayBufferLike default: the caller hands
+// these bytes straight to Blob, which does not accept a SharedArrayBuffer view.
+export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
   const labels = input.labels;
   const locale = input.locale || "en-US";
   const decimal = (value: number, digits: number) =>

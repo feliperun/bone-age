@@ -268,11 +268,12 @@ test("public synthetic JPEG runs all three networks after offline reopening", as
   const pdf = readFileSync(await download.path());
   expect(pdf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
   expect(pdf.subarray(-5).toString("latin1")).toBe("%%EOF");
-  // The radiograph travels inside it, so the file is far from empty.
-  expect(pdf.length).toBeGreaterThan(20_000);
   const text = pdf.toString("latin1");
+  // The analysed crop travels inside it, at the pixel size the networks saw.
   expect(text).toContain("/DCTDecode");
+  expect(text).toMatch(/\/Subtype \/Image \/Width 128 \/Height 192/);
   expect(text).toContain("startxref");
+  expect(pdf.length).toBeGreaterThan(4000);
   expect(errors).toEqual([]);
   expect(
     requests.every(

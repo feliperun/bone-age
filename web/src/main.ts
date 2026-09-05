@@ -181,12 +181,13 @@ async function openFile(file: File) {
     if (generation !== fileGeneration) return;
     image = decoded;
     filename = file.name;
+    const entered = sex.value || dob.value;
     sex.value = image.sex || "";
     dob.value = image.dob || "";
     exam.value = image.examDate || today();
     showImage();
-    if (image.sex || image.dob || image.examDate)
-      notice(t("msg.dicomFilled"));
+    if (image.sex || image.dob || image.examDate) notice(t("msg.dicomFilled"));
+    else if (entered) notice(t("msg.fieldsCleared"));
   } catch (e) {
     if (generation === fileGeneration)
       error(e instanceof Error ? e.message : t("msg.openFailed"));
@@ -306,13 +307,19 @@ for (const input of [sex, dob, exam, confirmed])
   });
 
 function finishWorker() {
-  worker?.terminate();
+  if (worker) {
+    worker.onmessage = worker.onerror = null;
+    worker.terminate();
+  }
   worker = undefined;
   setBusy(false);
 }
 function run(mode: "prepare" | "infer") {
   if (busy) return;
   if (mode === "infer" && (!image || !sex.value || !confirmed.checked)) return;
+  // terminate() does not retract a message the worker already posted, so a
+  // result can still arrive after a reset that cleared the examination fields.
+  const generation = ++fileGeneration;
   el("error").hidden = el("notice").hidden = true;
   invalidateResult();
   setBusy(true);
@@ -325,10 +332,12 @@ function run(mode: "prepare" | "infer") {
     type: "module",
   });
   worker.onerror = (event) => {
+    if (generation !== fileGeneration) return;
     error(event.message || t("msg.workerStopped"));
     finishWorker();
   };
   worker.onmessage = ({ data }) => {
+    if (generation !== fileGeneration) return;
     if (data.type === "progress") {
       const stages: Record<string, Key> = {
         cache: "progress.cache",
@@ -408,12 +417,20 @@ el("clear-cache").addEventListener("click", async () => {
     error(t("msg.cacheBlocked"));
   }
 });
+const resultChrono = (r: Result) => {
+  if (!r.dob) return undefined;
+  try {
+    return chronologicalMonths(r.dob, r.examDate);
+  } catch {
+    return undefined;
+  }
+};
 function showResult(r: Result, scroll = false) {
   el("result-age").textContent = ageText(r.months);
   el("result-months").textContent = t("result.months", {
     months: number(r.months, 2),
   });
-  const chrono = r.dob ? chronologicalMonths(r.dob, r.examDate) : undefined;
+  const chrono = resultChrono(r);
   el("result-chrono").textContent =
     chrono === undefined ? t("result.noChrono") : ageText(chrono);
   el("result-date").textContent = t("result.examOn", {
@@ -442,7 +459,7 @@ function showResult(r: Result, scroll = false) {
 el("download-report").addEventListener("click", () => {
   if (!result) return;
   const r = result,
-    chrono = r.dob ? chronologicalMonths(r.dob, r.examDate) : undefined;
+    chrono = resultChrono(r);
   const months = (value: number) =>
     t("report.monthsValue", { months: number(value, 4) });
   const report = [

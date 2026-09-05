@@ -88,6 +88,44 @@ test("upload, crop controls, validation, responsive layout, local-only networkin
   ).toBe(true);
 });
 
+// A second radiograph resets the examination fields so one patient's data can
+// never be carried into another's analysis - but the user has to be told.
+test("opening another radiograph never silently drops typed examination data", async ({
+  page,
+}) => {
+  await page.goto("./");
+  const png = (shade) =>
+    page.evaluate((value) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 80;
+      canvas.height = 120;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = `rgb(${value},${value},${value})`;
+      ctx.fillRect(0, 0, 80, 120);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(10, 10, 40, 60);
+      return canvas.toDataURL().split(",")[1];
+    }, shade);
+  const open = async (name, shade) =>
+    page.locator("#file-input").setInputFiles({
+      name,
+      mimeType: "image/png",
+      buffer: Buffer.from(await png(shade), "base64"),
+    });
+  await open("first.png", 30);
+  await expect(page.locator("#viewer")).toBeVisible();
+  await page.locator("#sex").selectOption("female");
+  await page.locator("#dob").fill("2019-03-08");
+  await expect(page.locator("#chrono")).not.toHaveText("\u2014");
+  await open("second.png", 90);
+  await expect(page.locator("#file-info")).toContainText("second.png");
+  await expect(page.locator("#dob")).toHaveValue("");
+  await expect(page.locator("#sex")).toHaveValue("");
+  await expect(page.locator("#notice")).toContainText(
+    "Os dados do exame foram limpos",
+  );
+});
+
 test("local DICOM end-to-end WASM parity and offline inference", async ({
   page,
   context,

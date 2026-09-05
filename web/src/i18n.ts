@@ -164,6 +164,8 @@ const pt = {
   "msg.checkDates": "Verifique as datas",
   "msg.dicomFilled":
     "Os campos disponíveis foram preenchidos pelo DICOM. Confira os dados e selecione a mão esquerda antes de calcular.",
+  "msg.fieldsCleared":
+    "Os dados do exame foram limpos para a nova imagem. Informe sexo e data de nascimento novamente.",
   "msg.openFailed": "Não foi possível abrir este arquivo.",
   "msg.oneFile": "Selecione uma radiografia por vez.",
   "msg.workerStopped":
@@ -417,6 +419,8 @@ const en: Record<Key, string> = {
   "msg.checkDates": "Check the dates",
   "msg.dicomFilled":
     "The available fields were filled in from the DICOM. Check the data and select the left hand before estimating.",
+  "msg.fieldsCleared":
+    "The examination data was cleared for the new image. Enter sex and date of birth again.",
   "msg.openFailed": "This file could not be opened.",
   "msg.oneFile": "Select one radiograph at a time.",
   "msg.workerStopped":

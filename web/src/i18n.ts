@@ -183,6 +183,8 @@ const pt = {
   "msg.cacheCleared":
     "Os pesos do modelo foram removidos do cache deste navegador.",
   "msg.cacheBlocked": "O navegador não permite acessar o cache neste modo.",
+  "msg.updateAvailable": "Uma nova versão do site está disponível.",
+  "msg.updateNow": "Atualizar agora",
   "msg.noOffline":
     "O navegador não habilitou o modo offline. A execução local continua disponível com conexão.",
 
@@ -470,6 +472,8 @@ const en: Record<Key, string> = {
   "msg.cancelled": "Processing cancelled. No partial result was presented.",
   "msg.cacheCleared": "The model weights were removed from this browser's cache.",
   "msg.cacheBlocked": "The browser does not allow cache access in this mode.",
+  "msg.updateAvailable": "A new version of the site is available.",
+  "msg.updateNow": "Update now",
   "msg.noOffline":
     "The browser did not enable offline mode. Local execution still works while online.",
 

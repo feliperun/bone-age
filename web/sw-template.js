@@ -4,6 +4,11 @@ const FILES = __PRECACHE__;
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(FILES)));
 });
+// A new version waits until every tab closes, which can strand a visitor on an
+// old build for days. The page offers the update; this applies it on request.
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "skip-waiting") self.skipWaiting();
+});
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {

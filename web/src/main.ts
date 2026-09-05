@@ -648,11 +648,42 @@ el("reset").addEventListener("click", () => {
   refresh();
 });
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  // Updates are offered, never forced: reloading during an analysis would throw
+  // away minutes of local computation.
+  let updating = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (updating) location.reload();
+  });
   navigator.serviceWorker
     .register(new URL("sw.js", base), { scope: new URL("./", base).pathname })
-    .catch(() =>
-      notice(t("msg.noOffline")),
-    );
+    .then((registration) => {
+      const offer = (worker: ServiceWorker | null) => {
+        // With no controller this is the first install, not an update.
+        if (!worker || !navigator.serviceWorker.controller) return;
+        const show = () => {
+          if (worker.state !== "installed") return;
+          const box = el("notice");
+          box.textContent = `${t("msg.updateAvailable")} `;
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "text-button";
+          button.textContent = t("msg.updateNow");
+          button.addEventListener("click", () => {
+            updating = true;
+            worker.postMessage({ type: "skip-waiting" });
+          });
+          box.append(button);
+          box.hidden = false;
+        };
+        show();
+        worker.addEventListener("statechange", show);
+      };
+      offer(registration.waiting);
+      registration.addEventListener("updatefound", () =>
+        offer(registration.installing),
+      );
+    })
+    .catch(() => notice(t("msg.noOffline")));
 }
 // Static copy carries data-i18n (text), data-i18n-html (text with markup) and
 // the attribute variants below. Values come from our own dictionary, never from

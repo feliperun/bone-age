@@ -379,9 +379,10 @@ h1 span {
 }
 .demo-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 0 4px;
   margin: -8px 22px 14px;
   font-size: 12px;
   color: var(--muted);
@@ -1059,6 +1060,12 @@ progress::-moz-progress-bar {
   .brand-tag,
   nav a {
     display: none;
+  }
+  .panel-title {
+    height: auto;
+    min-height: 56px;
+    padding-top: 11px;
+    padding-bottom: 11px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

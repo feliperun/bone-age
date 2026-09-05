@@ -229,3 +229,46 @@ test("public synthetic JPEG runs all three networks after offline reopening", as
     ),
   ).toBe(true);
 });
+
+test.describe("English", () => {
+  test.use({ locale: "en-US" });
+
+  test("follows the browser language and switches from the header", async ({
+    page,
+  }) => {
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto("./");
+    await expect(
+      page.getByRole("heading", { name: "Bone age. In your browser." }),
+    ).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await expect(page.locator("#lang-en")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.locator("#analyze")).toContainText("Estimate bone age");
+    // The model credit and its author link read in both languages.
+    await expect(page.locator("#credits-title")).toHaveText(
+      "The AI model is Ian Pan's.",
+    );
+    await expect(
+      page.locator('.credits a[href="https://huggingface.co/ianpan"]'),
+    ).toBeVisible();
+    await page.locator("#lang-pt").click();
+    await expect(
+      page.getByRole("heading", { name: "Idade óssea. No seu navegador." }),
+    ).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
+    await expect(page.locator("#analyze")).toContainText("Calcular idade óssea");
+    await page.reload();
+    await expect(page.locator("#lang-pt")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.locator("#credits-title")).toHaveText(
+      "O modelo de IA é de Ian Pan.",
+    );
+    expect(errors).toEqual([]);
+  });
+});

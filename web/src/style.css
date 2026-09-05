@@ -146,6 +146,28 @@ nav a {
 nav a:hover {
   color: var(--ink);
 }
+.lang-switch {
+  display: flex;
+  align-self: center;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.lang-switch button {
+  font: 10px var(--mono);
+  letter-spacing: 1px;
+  padding: 5px 9px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+}
+.lang-switch button:hover {
+  color: var(--ink);
+}
+.lang-switch button[aria-pressed="true"] {
+  background: var(--green);
+  color: var(--bg);
+}
 .hero {
   padding: 65px 0 55px;
   display: flex;
@@ -729,6 +751,31 @@ progress::-moz-progress-bar {
   padding-left: 0;
   margin-top: 10px;
 }
+.credits {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 100px;
+  padding: 34px 0 60px;
+  border-top: 1px solid var(--line);
+}
+.credits h2 {
+  font-size: 22px;
+  line-height: 1.3;
+  margin: 17px 0 0;
+}
+.credits p:not(.eyebrow) {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+.credits p:last-child {
+  margin-bottom: 0;
+}
+.credits a {
+  color: var(--green);
+  font-weight: 500;
+}
 .faq details {
   border-bottom: 1px solid var(--line);
   padding: 17px 0;
@@ -826,7 +873,8 @@ progress::-moz-progress-bar {
     display: block;
     margin: 3px 0;
   }
-  .about {
+  .about,
+  .credits {
     gap: 50px;
   }
   .result-grid strong {
@@ -934,7 +982,8 @@ progress::-moz-progress-bar {
   .model-bar > .text-button {
     margin-left: 3px;
   }
-  .about {
+  .about,
+  .credits {
     grid-template-columns: 1fr;
     gap: 25px;
     padding: 38px 0;
@@ -994,6 +1043,7 @@ progress::-moz-progress-bar {
   .workspace,
   .model-bar,
   .about,
+  .credits,
   .site-footer,
   .message,
   #download-report {

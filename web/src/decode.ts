@@ -1,6 +1,7 @@
 import dicomParser from "dicom-parser";
 import UTIF from "utif";
 import type { GrayImage } from "./types";
+import { t } from "./i18n";
 
 const MAX_PIXELS = 24_000_000;
 function dimensions(width: number, height: number) {
@@ -11,7 +12,7 @@ function dimensions(width: number, height: number) {
     height < 1 ||
     width * height > MAX_PIXELS
   ) {
-    throw new Error("Dimensões inválidas ou imagem maior que 24 megapixels.");
+    throw new Error(t("decode.badSize"));
   }
 }
 function isoDate(s?: string) {
@@ -66,7 +67,7 @@ async function decodeDicom(bytes: Uint8Array): Promise<GrayImage> {
     ds = dicomParser.parseDicom(bytes);
   } catch {
     throw new Error(
-      "Não foi possível ler o DICOM. Use um arquivo DICOM Part 10 original, PNG ou TIFF.",
+      t("decode.dicomUnreadable"),
     );
   }
   const width = ds.uint16("x00280011")!,
@@ -74,16 +75,16 @@ async function decodeDicom(bytes: Uint8Array): Promise<GrayImage> {
   dimensions(width, height);
   if (Number(ds.string("x00280008") || 1) !== 1)
     throw new Error(
-      "DICOM multiframe: exporte uma única radiografia para analisar.",
+      t("decode.dicomMultiframe"),
     );
   const photo = ds.string("x00280004")?.trim();
   if (!["MONOCHROME1", "MONOCHROME2"].includes(photo || ""))
-    throw new Error("Use um DICOM monocromático de radiografia da mão.");
+    throw new Error(t("decode.dicomMonochrome"));
   if ((ds.uint16("x00280002") || 1) !== 1)
-    throw new Error("DICOM com múltiplos canais não suportado.");
+    throw new Error(t("decode.dicomChannels"));
   const ts = ds.string("x00020010")?.trim();
   const element = ds.elements.x7fe00010;
-  if (!element) throw new Error("DICOM sem dados de imagem.");
+  if (!element) throw new Error(t("decode.noPixels"));
   const metadata = {
     sex: ({ M: "male", F: "female" } as const)[
       ds.string("x00100040") as "M" | "F"
@@ -101,7 +102,7 @@ async function decodeDicom(bytes: Uint8Array): Promise<GrayImage> {
       new Blob([new Uint8Array(jpeg)], { type: "image/jpeg" }),
     );
     if (decoded.width !== width || decoded.height !== height)
-      throw new Error("Dimensões DICOM e JPEG incompatíveis.");
+      throw new Error(t("decode.dicomJpegSize"));
     values = Float64Array.from(decoded.pixels);
   } else {
     if (
@@ -122,7 +123,7 @@ async function decodeDicom(bytes: Uint8Array): Promise<GrayImage> {
       (ds.uint16("x00280102") ?? stored - 1) !== stored - 1
     ) {
       throw new Error(
-        "DICOM precisa ter pixels inteiros de 8 ou 16 bits com alinhamento padrão.",
+        t("decode.dicomBits"),
       );
     }
     const n = width * height,
@@ -131,7 +132,7 @@ async function decodeDicom(bytes: Uint8Array): Promise<GrayImage> {
       element.length < n * size ||
       element.dataOffset + n * size > bytes.length
     )
-      throw new Error("Dados DICOM truncados.");
+      throw new Error(t("decode.truncated"));
     const view = new DataView(
       bytes.buffer,
       bytes.byteOffset + element.dataOffset,
@@ -157,7 +158,7 @@ async function decodeDicom(bytes: Uint8Array): Promise<GrayImage> {
       : lut.uint16("x00283002", 1)!;
     const depth = lut.uint16("x00283002", 2)!;
     if (![8, 10, 11, 12, 13, 14, 15, 16].includes(depth))
-      throw new Error("VOI LUT com profundidade não suportada.");
+      throw new Error(t("decode.dicomLut"));
     const data = lut.elements.x00283006;
     const word = data.length >= count * 2;
     if (data.length < count * (word ? 2 : 1))
@@ -180,7 +181,7 @@ async function decodeDicom(bytes: Uint8Array): Promise<GrayImage> {
         !["LINEAR", "LINEAR_EXACT", "SIGMOID"].includes(func) ||
         window < (func === "LINEAR" ? 1 : Number.MIN_VALUE)
       ) {
-        throw new Error("Janela DICOM inválida.");
+        throw new Error(t("decode.dicomWindow"));
       }
       for (let i = 0; i < values.length; i++) {
         if (func === "SIGMOID")
@@ -202,7 +203,7 @@ async function decodeDicom(bytes: Uint8Array): Promise<GrayImage> {
     max = Math.max(max, v);
   }
   if (!(max > min))
-    throw new Error("A radiografia está vazia ou tem contraste constante.");
+    throw new Error(t("decode.empty"));
   const pixels = new Uint8Array(values.length);
   for (let i = 0; i < pixels.length; i++) {
     const v = photo === "MONOCHROME1" ? max - values[i] : values[i] - min;
@@ -213,8 +214,8 @@ async function decodeDicom(bytes: Uint8Array): Promise<GrayImage> {
 
 export async function decodeFile(file: File): Promise<GrayImage> {
   if (file.size > 100 * 1024 * 1024)
-    throw new Error("O limite por imagem é 100 MB.");
-  if (!file.size) throw new Error("O arquivo está vazio.");
+    throw new Error(t("decode.tooLarge"));
+  if (!file.size) throw new Error(t("decode.emptyFile"));
   const buffer = await file.arrayBuffer(),
     bytes = new Uint8Array(buffer);
   const isDicom =
@@ -226,10 +227,10 @@ export async function decodeFile(file: File): Promise<GrayImage> {
     (bytes[0] === 77 && bytes[1] === 77 && bytes[3] === 42);
   if (isTiff) {
     const pages = UTIF.decode(buffer);
-    if (!pages.length) throw new Error("TIFF sem imagem.");
+    if (!pages.length) throw new Error(t("decode.tiffEmpty"));
     if (pages.length !== 1)
       throw new Error(
-        "TIFF com múltiplas páginas: exporte apenas a radiografia desejada.",
+        t("decode.tiffPages"),
       );
     const page = pages[0];
     dimensions((page.t256 as number[])[0], (page.t257 as number[])[0]);
@@ -247,7 +248,7 @@ export async function decodeFile(file: File): Promise<GrayImage> {
     !/\.(png|jpe?g|webp|bmp|avif)$/i.test(file.name)
   ) {
     throw new Error(
-      "Formato não reconhecido. Use DICOM, PNG, JPEG, TIFF, WebP, BMP ou AVIF.",
+      t("decode.unknownFormat"),
     );
   }
   try {
@@ -257,7 +258,7 @@ export async function decodeFile(file: File): Promise<GrayImage> {
     };
   } catch {
     throw new Error(
-      "Não foi possível decodificar a imagem. Confira o formato e o tamanho.",
+      t("decode.failed"),
     );
   }
 }

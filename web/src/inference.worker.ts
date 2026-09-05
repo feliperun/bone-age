@@ -1,6 +1,7 @@
 import * as ort from "onnxruntime-web/wasm";
 import { cropPixels, matchHistogram, resizeAndPad } from "./processing";
 import type { Manifest, ModelFile } from "./types";
+import { setLang, t } from "./i18n";
 
 const tell = (data: object) => self.postMessage(data);
 const sha256 = async (data: Uint8Array) =>
@@ -53,7 +54,7 @@ async function loadWeights(
     tell({
       type: "notice",
       message:
-        "Cache indisponível neste navegador. O cálculo continua localmente, mas o uso offline não estará disponível.",
+        t("worker.noCache"),
     });
   }
   const cached = await cache?.match(url);
@@ -71,7 +72,7 @@ async function loadWeights(
   const response = await fetch(url);
   if (!response.ok)
     throw new Error(
-      `Falha ao baixar rede ${index + 1} (${response.status}). Verifique a conexão e tente novamente.`,
+      t("worker.downloadFailed", { fold: index + 1, status: response.status }),
     );
   const data = new Uint8Array(entry.bytes);
   const reader = response.body!.getReader();
@@ -81,7 +82,7 @@ async function loadWeights(
     const { value, done } = await reader.read();
     if (done) break;
     if (offset + value.length > data.length)
-      throw new Error("Arquivo do modelo tem tamanho inesperado.");
+      throw new Error(t("worker.badSize"));
     data.set(value, offset);
     offset += value.length;
     if (performance.now() - lastUpdate > 120) {
@@ -96,7 +97,7 @@ async function loadWeights(
   }
   if (offset !== entry.bytes || (await sha256(data)) !== entry.sha256)
     throw new Error(
-      "Verificação de integridade do modelo falhou. Tente baixar novamente.",
+      t("worker.integrity"),
     );
   try {
     await cache?.put(
@@ -109,7 +110,7 @@ async function loadWeights(
     tell({
       type: "notice",
       message:
-        "Sem espaço para cache. O cálculo continua; os pesos precisarão ser baixados no próximo uso.",
+        t("worker.noSpace"),
     });
   }
   return data;
@@ -118,14 +119,15 @@ async function loadWeights(
 self.onmessage = async ({ data }) => {
   try {
     const { base, weightsBase, mode } = data;
+    setLang(data.lang);
     const manifestResponse = await loadMetadata(
       new URL("models/manifest.json", weightsBase),
     ).catch(() => undefined);
     if (!manifestResponse)
-      throw new Error("O modelo não está disponível nesta instalação.");
+      throw new Error(t("worker.unavailable"));
     const manifest: Manifest = await manifestResponse.json();
     if (manifest.models.length !== 3)
-      throw new Error("Manifesto do modelo inválido.");
+      throw new Error(t("worker.badManifest"));
     ort.env.wasm.wasmPaths = new URL("runtime/", base).href;
     // The host supplies no COOP/COEP. Single-thread WASM works without SharedArrayBuffer.
     ort.env.wasm.numThreads = 1;
@@ -138,12 +140,12 @@ self.onmessage = async ({ data }) => {
         new URL(`models/${manifest.reference}`, weightsBase),
       ).catch(() => undefined);
       if (!referenceResponse)
-        throw new Error("Referência de pré-processamento indisponível.");
+        throw new Error(t("worker.noReference"));
       const reference = await referenceResponse.json();
       const crop = cropPixels(data.image, data.crop);
       if (crop.pixels.every((value) => value === crop.pixels[0]))
         throw new Error(
-          "O recorte não tem contraste. Selecione a mão na radiografia.",
+          t("worker.noContrast"),
         );
       const pixels = matchHistogram(crop.pixels, reference.counts);
       input = resizeAndPad(pixels, crop.width, crop.height);
@@ -182,7 +184,7 @@ self.onmessage = async ({ data }) => {
           sexTensor.dispose();
           output.months.dispose();
           if (!Number.isFinite(months) || months < 0 || months > 239)
-            throw new Error("A rede retornou um resultado inválido.");
+            throw new Error(t("worker.badOutput"));
           folds.push(months);
         } finally {
           await session.release();
@@ -206,7 +208,7 @@ self.onmessage = async ({ data }) => {
       message:
         error instanceof Error
           ? error.message
-          : "Não foi possível executar o modelo. O navegador pode estar sem memória. Feche outras abas e tente novamente.",
+          : t("worker.failed"),
     });
   }
 };

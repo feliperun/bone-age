@@ -6,6 +6,18 @@ import {
   validateCrop,
 } from "./processing";
 import type { Crop, GrayImage, Result } from "./types";
+import {
+  detectLang,
+  LANG_STORAGE,
+  LANGUAGES,
+  lang,
+  setLang,
+  t,
+  type Key,
+  type Lang,
+} from "./i18n";
+
+setLang(detectLang());
 
 const el = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -36,7 +48,7 @@ let busy = false,
   fileGeneration = 0;
 let dragging: { x: number; y: number } | undefined;
 const number = (n: number, digits = 1) =>
-  n.toLocaleString("pt-BR", {
+  n.toLocaleString(t("app.locale"), {
     maximumFractionDigits: digits,
     minimumFractionDigits: digits,
   });
@@ -44,9 +56,17 @@ const ageText = (months: number) => {
   const rounded = Math.round(months),
     years = Math.floor(rounded / 12),
     m = rounded % 12;
-  return `${years} ${years === 1 ? "ano" : "anos"} e ${m} ${m === 1 ? "mês" : "meses"}`;
+  return t("age.years", {
+    years,
+    yearWord: t(years === 1 ? "age.year" : "age.yearPlural"),
+    months: m,
+    monthWord: t(m === 1 ? "age.month" : "age.monthPlural"),
+  });
 };
-const localDate = (s: string) => s.split("-").reverse().join("/");
+const localDate = (s: string) => {
+  const [year, month, day] = s.split("-");
+  return t("date.format", { year, month, day });
+};
 
 function error(message: string) {
   el("error").textContent = message;
@@ -55,6 +75,11 @@ function error(message: string) {
 function notice(message: string) {
   el("notice").textContent = message;
   el("notice").hidden = false;
+}
+let statusKey: Key = "model.initial";
+function status(key: Key) {
+  statusKey = key;
+  el("model-status").textContent = t(key);
 }
 function invalidateResult() {
   result = undefined;
@@ -72,7 +97,7 @@ function refresh() {
       );
   } catch {
     validDates = false;
-    el("chrono").textContent = "Verifique as datas";
+    el("chrono").textContent = t("msg.checkDates");
   }
   el<HTMLButtonElement>("analyze").disabled =
     busy ||
@@ -148,7 +173,7 @@ async function openFile(file: File) {
   el("dropzone").hidden = false;
   el("error").hidden = el("notice").hidden = true;
   setBusy(true);
-  el("progress-label").textContent = "Abrindo radiografia localmente…";
+  el("progress-label").textContent = t("progress.opening");
   el("progress-percent").textContent = "";
   el<HTMLProgressElement>("progress").removeAttribute("value");
   try {
@@ -161,14 +186,10 @@ async function openFile(file: File) {
     exam.value = image.examDate || today();
     showImage();
     if (image.sex || image.dob || image.examDate)
-      notice(
-        "Os campos disponíveis foram preenchidos pelo DICOM. Confira os dados e selecione a mão esquerda antes de calcular.",
-      );
+      notice(t("msg.dicomFilled"));
   } catch (e) {
     if (generation === fileGeneration)
-      error(
-        e instanceof Error ? e.message : "Não foi possível abrir este arquivo.",
-      );
+      error(e instanceof Error ? e.message : t("msg.openFailed"));
   } finally {
     if (generation === fileGeneration) setBusy(false);
   }
@@ -201,7 +222,7 @@ for (const name of ["dragleave", "drop"])
 el("dropzone").addEventListener("drop", (event) => {
   const files = (event as DragEvent).dataTransfer?.files;
   if (files?.length && !busy) {
-    if (files.length !== 1) error("Selecione uma radiografia por vez.");
+    if (files.length !== 1) error(t("msg.oneFile"));
     else void openFile(files[0]);
   }
 });
@@ -295,33 +316,30 @@ function run(mode: "prepare" | "infer") {
   el("error").hidden = el("notice").hidden = true;
   invalidateResult();
   setBusy(true);
-  el("progress-label").textContent = "Preparando modelo local…";
+  el("progress-label").textContent = t("progress.model");
   el("progress-percent").textContent = "";
   el<HTMLProgressElement>("progress").value = 0;
   el("progress-detail").textContent =
-    mode === "infer"
-      ? "Três redes são executadas em sequência. Isso pode levar alguns minutos."
-      : "Somente arquivos públicos do modelo serão baixados.";
+    mode === "infer" ? t("progress.infer") : t("progress.prepare");
   worker = new Worker(new URL("./inference.worker.ts", import.meta.url), {
     type: "module",
   });
   worker.onerror = (event) => {
-    error(
-      event.message ||
-        "O worker foi interrompido. Feche outras abas para liberar memória e tente novamente.",
-    );
+    error(event.message || t("msg.workerStopped"));
     finishWorker();
   };
   worker.onmessage = ({ data }) => {
     if (data.type === "progress") {
-      const labels: Record<string, string> = {
-        cache: "Lendo cache",
-        download: "Baixando pesos",
-        compute: "Calculando",
-        done: "Rede concluída",
+      const stages: Record<string, Key> = {
+        cache: "progress.cache",
+        download: "progress.download",
+        compute: "progress.compute",
+        done: "progress.done",
       };
-      el("progress-label").textContent =
-        `${labels[data.stage]} · rede ${data.fold + 1}/3`;
+      el("progress-label").textContent = t("progress.fold", {
+        stage: t(stages[data.stage]),
+        fold: data.fold + 1,
+      });
       const percent = Math.round(
         (100 *
           (data.fold +
@@ -340,12 +358,8 @@ function run(mode: "prepare" | "infer") {
       finishWorker();
     } else if (data.type === "ready") {
       finishWorker();
-      el("model-status").textContent =
-        "Download concluído. Pesos disponíveis para cálculo local; cache sujeito ao espaço do navegador.";
-      if (el("notice").hidden)
-        notice(
-          "Download concluído. Você já pode abrir uma radiografia e executar o modelo.",
-        );
+      status("model.ready");
+      if (el("notice").hidden) notice(t("msg.readyNotice"));
     } else if (data.type === "result") {
       result = {
         ...data,
@@ -355,14 +369,14 @@ function run(mode: "prepare" | "infer") {
         examDate: exam.value,
       };
       finishWorker();
-      showResult(result!);
-      el("model-status").textContent =
-        "Modelo executado neste navegador. Os pesos baixados são reutilizados quando o cache está disponível.";
+      showResult(result!, true);
+      status("model.executed");
     }
   };
   worker.postMessage({
     base,
     weightsBase,
+    lang: lang(),
     mode,
     image: mode === "infer" ? image : undefined,
     crop,
@@ -378,7 +392,7 @@ el("analysis-form").addEventListener("submit", (e) => {
 el("cancel").addEventListener("click", () => {
   ++fileGeneration;
   finishWorker();
-  notice("Processamento cancelado. Nenhum resultado parcial foi apresentado.");
+  notice(t("msg.cancelled"));
 });
 el("clear-cache").addEventListener("click", async () => {
   try {
@@ -388,55 +402,80 @@ el("clear-cache").addEventListener("click", async () => {
         key === "bone-age-model-metadata"
       )
         await caches.delete(key);
-    el("model-status").textContent =
-      "Cache de pesos removido. O próximo cálculo precisará baixar ~340 MB.";
-    notice("Os pesos do modelo foram removidos do cache deste navegador.");
+    status("model.cleared");
+    notice(t("msg.cacheCleared"));
   } catch {
-    error("O navegador não permite acessar o cache neste modo.");
+    error(t("msg.cacheBlocked"));
   }
 });
-function showResult(r: Result) {
+function showResult(r: Result, scroll = false) {
   el("result-age").textContent = ageText(r.months);
-  el("result-months").textContent =
-    `${number(r.months, 2)} meses · média das três redes`;
+  el("result-months").textContent = t("result.months", {
+    months: number(r.months, 2),
+  });
   const chrono = r.dob ? chronologicalMonths(r.dob, r.examDate) : undefined;
   el("result-chrono").textContent =
-    chrono === undefined ? "Não informada" : ageText(chrono);
-  el("result-date").textContent = `Exame em ${localDate(r.examDate)}`;
+    chrono === undefined ? t("result.noChrono") : ageText(chrono);
+  el("result-date").textContent = t("result.examOn", {
+    date: localDate(r.examDate),
+  });
   const diff = chrono === undefined ? undefined : r.months - chrono;
   el("result-difference").textContent =
     diff === undefined
       ? "—"
-      : `${diff >= 0 ? "+" : "−"}${number(Math.abs(diff))} meses`;
-  el("execution-details").textContent =
-    `${r.model} · revisão ${r.revision} · ONNX FP32 · WebAssembly/CPU · ${number(r.seconds)} s · redes: ${r.folds.map((m) => number(m, 4)).join(" / ")} meses · recorte: ${Object.values(r.crop).join(", ")} · sexo: ${r.sex === "male" ? "masculino" : "feminino"}.`;
+      : t("result.differenceMonths", {
+          sign: diff >= 0 ? "+" : "−",
+          months: number(Math.abs(diff)),
+        });
+  el("execution-details").textContent = t("result.execution", {
+    model: r.model,
+    revision: r.revision,
+    seconds: number(r.seconds),
+    folds: r.folds.map((m) => number(m, 4)).join(" / "),
+    crop: Object.values(r.crop).join(", "),
+    sex: t(r.sex === "male" ? "sex.male" : "sex.female"),
+  });
   el("result").hidden = false;
   el("step-3").classList.add("active");
-  el("result").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (scroll) el("result").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 el("download-report").addEventListener("click", () => {
   if (!result) return;
   const r = result,
     chrono = r.dob ? chronologicalMonths(r.dob, r.examDate) : undefined;
+  const months = (value: number) =>
+    t("report.monthsValue", { months: number(value, 4) });
   const report = [
-    "# Estimativa experimental de idade óssea",
+    t("report.title"),
     "",
-    `- Idade óssea estimada: **${number(r.months, 4)} meses (${ageText(r.months)})**.`,
-    `- Sexo: ${r.sex === "male" ? "masculino" : "feminino"}.`,
-    `- Nascimento: ${r.dob ? localDate(r.dob) : "não informado"}.`,
-    `- Exame: ${localDate(r.examDate)}.`,
-    `- Idade cronológica: ${chrono === undefined ? "não informada" : `${number(chrono, 4)} meses`}.`,
-    `- Diferença: ${chrono === undefined ? "não calculada" : `${number(r.months - chrono, 4)} meses`}.`,
+    t("report.estimated", {
+      months: number(r.months, 4),
+      age: ageText(r.months),
+    }),
+    t("report.sex", { sex: t(r.sex === "male" ? "sex.male" : "sex.female") }),
+    t("report.dob", {
+      date: r.dob ? localDate(r.dob) : t("report.notInformed"),
+    }),
+    t("report.exam", { date: localDate(r.examDate) }),
+    t("report.chrono", {
+      value: chrono === undefined ? t("report.notInformedFem") : months(chrono),
+    }),
+    t("report.difference", {
+      value:
+        chrono === undefined
+          ? t("report.notComputed")
+          : months(r.months - chrono),
+    }),
     "",
-    `Modelo: ${r.model}, revisão ${r.revision}.`,
-    "Execução local no navegador: ONNX FP32, WebAssembly/CPU, três redes.",
-    `Saídas individuais (meses): ${r.folds.map((v) => number(v, 4)).join("; ")}.`,
-    `Tempo incluindo carregamento: ${number(r.seconds)} segundos.`,
-    `Recorte [x0, y0, x1, y1] na imagem orientada: [${Object.values(r.crop).join(", ")}].`,
-    "Pré-processamento: decodificação local, recorte manual, ajuste de histograma, interpolação bilinear, padding 512×512.",
+    t("report.model", { model: r.model, revision: r.revision }),
+    t("report.execution"),
+    t("report.folds", { folds: r.folds.map((v) => number(v, 4)).join("; ") }),
+    t("report.seconds", { seconds: number(r.seconds) }),
+    t("report.crop", { crop: Object.values(r.crop).join(", ") }),
+    t("report.preprocessing"),
     "",
-    "Resultado experimental. Não é um laudo nem estabelece diagnóstico. O erro médio publicado não é um intervalo de confiança individual.",
-    "Nenhuma imagem ou dado do exame foi enviado a servidores.",
+    t("report.disclaimer"),
+    t("report.privacy"),
     "",
   ].join("\n");
   const url = URL.createObjectURL(
@@ -444,7 +483,7 @@ el("download-report").addEventListener("click", () => {
   );
   const a = document.createElement("a");
   a.href = url;
-  a.download = `idade-ossea-${r.examDate}.md`;
+  a.download = `${t("report.filename")}-${r.examDate}.md`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
@@ -462,7 +501,7 @@ el("reset").addEventListener("click", () => {
   el("viewer").hidden = true;
   el("dropzone").hidden = false;
   el("error").hidden = el("notice").hidden = true;
-  el("image-format").textContent = "ARQUIVO LOCAL";
+  el("image-format").textContent = t("image.localFile");
   el("file-info").textContent = "";
   el("step-2").classList.remove("active");
   refresh();
@@ -471,9 +510,48 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
   navigator.serviceWorker
     .register(new URL("sw.js", base), { scope: new URL("./", base).pathname })
     .catch(() =>
-      notice(
-        "O navegador não habilitou o modo offline. A execução local continua disponível com conexão.",
-      ),
+      notice(t("msg.noOffline")),
     );
 }
-refresh();
+// Static copy carries data-i18n (text), data-i18n-html (text with markup) and
+// the attribute variants below. Values come from our own dictionary, never from
+// user input, so innerHTML is safe here.
+const I18N_ATTRIBUTES: [string, string, string][] = [
+  ["[data-i18n-title]", "title", "i18nTitle"],
+  ["[data-i18n-aria-label]", "aria-label", "i18nAriaLabel"],
+  ["[data-i18n-content]", "content", "i18nContent"],
+];
+function applyTranslations() {
+  document.documentElement.lang = t("app.htmlLang");
+  for (const node of document.querySelectorAll<HTMLElement>("[data-i18n]"))
+    node.textContent = t(node.dataset.i18n as Key);
+  for (const node of document.querySelectorAll<HTMLElement>("[data-i18n-html]"))
+    node.innerHTML = t(node.dataset.i18nHtml as Key);
+  for (const [selector, attribute, dataset] of I18N_ATTRIBUTES)
+    for (const node of document.querySelectorAll<HTMLElement>(selector))
+      node.setAttribute(attribute, t(node.dataset[dataset] as Key));
+}
+function applyLang(value: Lang, persist: boolean) {
+  setLang(value);
+  if (persist)
+    try {
+      localStorage.setItem(LANG_STORAGE, value);
+    } catch {
+      /* Private modes reject storage; the choice then lasts for this page only. */
+    }
+  for (const code of LANGUAGES)
+    el(`lang-${code}`).setAttribute("aria-pressed", String(code === value));
+  applyTranslations();
+  el("model-status").textContent = t(statusKey);
+  el("image-format").textContent = image ? image.format : t("image.localFile");
+  if (image)
+    el("file-info").textContent =
+      `${filename} · ${image.width} × ${image.height}`;
+  // Transient messages were written in the previous language; drop them.
+  el("error").hidden = el("notice").hidden = true;
+  if (result) showResult(result);
+  refresh();
+}
+for (const code of LANGUAGES)
+  el(`lang-${code}`).addEventListener("click", () => applyLang(code, true));
+applyLang(lang(), false);

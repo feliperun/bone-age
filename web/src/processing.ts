@@ -1,4 +1,5 @@
 import type { Crop, GrayImage } from "./types";
+import { t } from "./i18n";
 
 export function validateCrop(crop: Crop, width: number, height: number) {
   const { x0, y0, x1, y1 } = crop;
@@ -19,7 +20,7 @@ export function cropPixels(
 ) {
   if (!validateCrop(crop, image.width, image.height))
     throw new Error(
-      "Selecione uma região de pelo menos 32 × 32 pixels, dentro da imagem.",
+      t("processing.cropTooSmall"),
     );
   const width = crop.x1 - crop.x0,
     height = crop.y1 - crop.y0;
@@ -42,12 +43,12 @@ export function matchHistogram(pixels: Uint8Array, referenceCounts: number[]) {
     referenceCounts.length !== 256 ||
     referenceCounts.some((n) => n < 0 || !Number.isFinite(n))
   ) {
-    throw new Error("Referência de histograma inválida.");
+    throw new Error(t("processing.badReference"));
   }
   const counts = new Float64Array(256);
   for (const value of pixels) counts[value]++;
   const refTotal = referenceCounts.reduce((a, b) => a + b, 0);
-  if (!refTotal || !pixels.length) throw new Error("Histograma vazio.");
+  if (!refTotal || !pixels.length) throw new Error(t("processing.emptyHistogram"));
   const quantiles: number[] = [],
     values: number[] = [];
   let cumulative = 0;
@@ -134,21 +135,21 @@ export function rotateClockwise(image: GrayImage): GrayImage {
 export function chronologicalMonths(dob: string, exam: string) {
   const parse = (s: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s))
-      throw new Error("Informe datas válidas.");
+      throw new Error(t("processing.badDates"));
     const date = new Date(`${s}T00:00:00Z`);
     if (
       !Number.isFinite(date.getTime()) ||
       date.toISOString().slice(0, 10) !== s
     )
-      throw new Error("Informe datas válidas.");
+      throw new Error(t("processing.badDates"));
     return date.getTime();
   };
   const days = (parse(exam) - parse(dob)) / 86400000;
   if (days < 0)
-    throw new Error("O nascimento não pode ser posterior ao exame.");
+    throw new Error(t("processing.birthAfterExam"));
   if (days > 20 * 365.25)
     throw new Error(
-      "O modelo é pediátrico. Verifique as datas (idade até 20 anos).",
+      t("processing.tooOld"),
     );
   return days / 30.4375;
 }

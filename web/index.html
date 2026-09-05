@@ -6,40 +6,77 @@
     <meta name="theme-color" content="#f5f6f2" />
     <meta
       name="description"
+      data-i18n-content="app.description"
       content="Estimativa experimental de idade óssea com processamento local no navegador. Suas radiografias permanecem no seu dispositivo."
     />
+    <!-- connect-src also covers the public weights host, injected at build time. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self' __WEIGHTS_ORIGIN__; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
     />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
-    <title>Bone Age — idade óssea, localmente</title>
+    <title data-i18n="app.title">Bone Age — idade óssea, localmente</title>
   </head>
   <body>
     <header class="site-header wrap">
-      <a class="brand" href="./" aria-label="Bone Age, início"
+      <a
+        class="brand"
+        href="./"
+        data-i18n-aria-label="nav.brand"
+        aria-label="Bone Age, início"
         ><span class="brand-mark" aria-hidden="true">b<span>°</span></span
         >bone age<span class="brand-tag">LOCAL</span></a
       >
-      <nav aria-label="Navegação">
-        <a href="#sobre">Como funciona</a
+      <nav data-i18n-aria-label="nav.label" aria-label="Navegação">
+        <a href="#sobre" data-i18n="nav.how">Como funciona</a
         ><a
           href="https://github.com/feliperun/bone-age"
           target="_blank"
           rel="noreferrer"
+          data-i18n-html="nav.source"
           >Código aberto <span aria-hidden="true">↗</span></a
         >
+        <div
+          class="lang-switch"
+          role="group"
+          data-i18n-aria-label="nav.language"
+          aria-label="Idioma"
+        >
+          <button
+            type="button"
+            id="lang-pt"
+            data-lang="pt"
+            data-i18n-title="nav.langPt"
+            title="Português"
+            aria-pressed="true"
+          >
+            PT</button
+          ><button
+            type="button"
+            id="lang-en"
+            data-lang="en"
+            data-i18n-title="nav.langEn"
+            title="English"
+            aria-pressed="false"
+          >
+            EN
+          </button>
+        </div>
       </nav>
     </header>
     <main class="wrap">
       <section class="hero" aria-labelledby="title">
         <div>
           <p class="eyebrow">
-            <span class="status-dot"></span> INTELIGÊNCIA ARTIFICIAL ·
-            PROCESSAMENTO LOCAL
+            <span class="status-dot"></span>
+            <span data-i18n="hero.eyebrow"
+              >INTELIGÊNCIA ARTIFICIAL · PROCESSAMENTO LOCAL</span
+            >
           </p>
-          <h1 id="title">Idade óssea.<br /><span>No seu navegador.</span></h1>
-          <p class="hero-description">
+          <h1 id="title" data-i18n-html="hero.title">
+            Idade óssea.<br /><span>No seu navegador.</span>
+          </h1>
+          <p class="hero-description" data-i18n-html="hero.description">
             Da radiografia à estimativa de maturação óssea.<br />Seus arquivos
             ficam com você, do início ao fim.
           </p>
@@ -60,8 +97,8 @@
             <path d="m7 13 3 3 7-7" stroke="currentColor" stroke-width="1.5" />
           </svg>
           <div>
-            <strong>Seu dispositivo. Seus dados.</strong>
-            <p>
+            <strong data-i18n="hero.localTitle">Seu dispositivo. Seus dados.</strong>
+            <p data-i18n-html="hero.localText">
               Sem upload para servidores.<br />Sem cadastro. Sem rastreamento.
             </p>
           </div>
@@ -69,28 +106,45 @@
       </section>
 
       <div class="workspace-heading">
-        <h2>Nova análise</h2>
-        <span class="experiment-badge">USO EXPERIMENTAL</span>
+        <h2 data-i18n="workspace.title">Nova análise</h2>
+        <span class="experiment-badge" data-i18n="workspace.badge"
+          >USO EXPERIMENTAL</span
+        >
       </div>
-      <ol class="steps" aria-label="Etapas da análise">
-        <li class="active" id="step-1"><span>01</span> Abrir radiografia</li>
-        <li id="step-2"><span>02</span> Preparar imagem</li>
-        <li id="step-3"><span>03</span> Calcular idade óssea</li>
+      <ol
+        class="steps"
+        data-i18n-aria-label="steps.label"
+        aria-label="Etapas da análise"
+      >
+        <li class="active" id="step-1" data-i18n-html="steps.one">
+          <span>01</span> Abrir radiografia
+        </li>
+        <li id="step-2" data-i18n-html="steps.two">
+          <span>02</span> Preparar imagem
+        </li>
+        <li id="step-3" data-i18n-html="steps.three">
+          <span>03</span> Calcular idade óssea
+        </li>
       </ol>
 
       <div id="error" class="message error" role="alert" hidden></div>
       <div id="notice" class="message notice" role="status" hidden></div>
 
-      <section class="workspace" aria-label="Radiografia e dados do exame">
+      <section
+        class="workspace"
+        data-i18n-aria-label="workspace.label"
+        aria-label="Radiografia e dados do exame"
+      >
         <div class="image-panel">
           <div class="panel-title">
-            <h3>Radiografia da mão esquerda</h3>
+            <h3 data-i18n="image.title">Radiografia da mão esquerda</h3>
             <span id="image-format" class="small-label">ARQUIVO LOCAL</span>
           </div>
           <input
             type="file"
             id="file-input"
             class="visually-hidden"
+            data-i18n-aria-label="image.select"
             aria-label="Selecionar radiografia"
           />
           <div
@@ -98,6 +152,7 @@
             class="dropzone"
             tabindex="0"
             role="button"
+            data-i18n-aria-label="image.dropzone"
             aria-label="Selecionar ou arrastar radiografia"
           >
             <div class="upload-symbol" aria-hidden="true">
@@ -114,18 +169,24 @@
                 />
               </svg>
             </div>
-            <strong>Arraste sua radiografia até aqui</strong
-            ><span>ou <u>selecione um arquivo</u> no dispositivo</span>
+            <strong data-i18n="dropzone.title"
+              >Arraste sua radiografia até aqui</strong
+            ><span data-i18n-html="dropzone.subtitle"
+              >ou <u>selecione um arquivo</u> no dispositivo</span
+            >
             <div class="file-types">
               <span>DICOM</span><span>JPEG</span><span>PNG</span
-              ><span>TIFF</span><span>+ outros</span>
+              ><span>TIFF</span><span data-i18n="dropzone.others">+ outros</span>
             </div>
-            <small>Arquivo original recomendado · até 100 MB</small>
+            <small data-i18n="dropzone.limit"
+              >Arquivo original recomendado · até 100 MB</small
+            >
           </div>
           <div id="viewer" hidden>
             <div class="canvas-container">
               <canvas
                 id="image-canvas"
+                data-i18n-aria-label="image.canvas"
                 aria-label="Radiografia. Arraste para selecionar a mão esquerda ou use os campos de recorte abaixo."
               ></canvas>
             </div>
@@ -136,49 +197,63 @@
                   type="button"
                   id="rotate"
                   class="icon-button"
+                  data-i18n-title="viewer.rotate"
                   title="Girar imagem 90 graus"
                 >
-                  ↻ <span>Girar</span></button
-                ><button type="button" id="full-crop" class="icon-button">
+                  ↻ <span data-i18n="viewer.rotateLabel">Girar</span></button
+                ><button
+                  type="button"
+                  id="full-crop"
+                  class="icon-button"
+                  data-i18n="viewer.fullCrop"
+                >
                   Imagem inteira</button
-                ><button type="button" id="replace" class="icon-button">
+                ><button
+                  type="button"
+                  id="replace"
+                  class="icon-button"
+                  data-i18n="viewer.replace"
+                >
                   Trocar
                 </button>
               </div>
             </div>
-            <p class="crop-instruction">
+            <p class="crop-instruction" data-i18n-html="viewer.instruction">
               Arraste sobre a imagem para recortar
               <strong>apenas a mão esquerda</strong>. Inclua os cinco dedos e o
               punho; retire o excesso de antebraço.
             </p>
             <details class="crop-details">
-              <summary>Ajustar recorte por coordenadas</summary>
+              <summary data-i18n="viewer.cropDetails">
+                Ajustar recorte por coordenadas
+              </summary>
               <div class="crop-fields">
                 <label
-                  >X inicial<input
+                  ><span data-i18n="viewer.x0">X inicial</span><input
                     id="x0"
                     type="number"
                     min="0"
                     step="1" /></label
                 ><label
-                  >Y inicial<input
+                  ><span data-i18n="viewer.y0">Y inicial</span><input
                     id="y0"
                     type="number"
                     min="0"
                     step="1" /></label
                 ><label
-                  >X final<input
+                  ><span data-i18n="viewer.x1">X final</span><input
                     id="x1"
                     type="number"
                     min="0"
                     step="1" /></label
                 ><label
-                  >Y final<input id="y1" type="number" min="0" step="1"
+                  ><span data-i18n="viewer.y1">Y final</span
+                  ><input id="y1" type="number" min="0" step="1"
                 /></label>
               </div>
             </details>
           </div>
-          <div class="image-footer">
+          <div class="image-footer" data-i18n-html="image.footer">
             <span class="tiny-lock" aria-hidden="true">◈</span> A imagem é
             aberta localmente e não sai deste navegador.
           </div>
@@ -186,75 +261,107 @@
 
         <form id="analysis-form" class="data-panel">
           <div class="panel-title">
-            <h3>Dados do exame</h3>
+            <h3 data-i18n="form.title">Dados do exame</h3>
             <span class="small-label">02</span>
           </div>
           <fieldset id="exam-fields">
-            <label class="field-label" for="sex"
+            <label class="field-label" for="sex" data-i18n-html="form.sex"
               >Sexo biológico <span>obrigatório</span></label
             >
             <select id="sex" required>
-              <option value="">Selecione</option>
-              <option value="male">Masculino</option>
-              <option value="female">Feminino</option>
+              <option value="" data-i18n="form.sexPlaceholder">
+                Selecione
+              </option>
+              <option value="male" data-i18n="form.male">Masculino</option>
+              <option value="female" data-i18n="form.female">Feminino</option>
             </select>
-            <p class="field-help">
+            <p class="field-help" data-i18n="form.sexHelp">
               Usado pelo modelo para estimar a maturação óssea.
             </p>
-            <label class="field-label" for="dob"
+            <label class="field-label" for="dob" data-i18n-html="form.dob"
               >Data de nascimento <span>opcional</span></label
             ><input id="dob" type="date" />
-            <label class="field-label" for="exam-date">Data do exame</label
+            <label class="field-label" for="exam-date" data-i18n="form.examDate"
+              >Data do exame</label
             ><input id="exam-date" type="date" required />
             <div class="chrono-line">
-              <span>Idade na data do exame</span><strong id="chrono">—</strong>
+              <span data-i18n="form.chrono">Idade na data do exame</span
+              ><strong id="chrono">—</strong>
             </div>
             <label class="confirm-label"
               ><input type="checkbox" id="confirm-hand" required /><span
+                data-i18n-html="form.confirm"
                 >Conferi que o recorte contém a
                 <strong>mão esquerda em PA</strong>, com dedos para cima e punho
                 visível.</span
               ></label
             >
           </fieldset>
-          <button id="analyze" type="submit" class="primary-button" disabled>
+          <button
+            id="analyze"
+            type="submit"
+            class="primary-button"
+            data-i18n-html="form.submit"
+            disabled
+          >
             Calcular idade óssea <span aria-hidden="true">→</span>
           </button>
-          <button id="cancel" type="button" class="text-button" hidden>
+          <button
+            id="cancel"
+            type="button"
+            class="text-button"
+            data-i18n="form.cancel"
+            hidden
+          >
             Cancelar processamento
           </button>
           <div id="progress-area" aria-live="polite" hidden>
             <div class="progress-label">
-              <span id="progress-label">Preparando…</span
+              <span id="progress-label" data-i18n="progress.preparing"
+                >Preparando…</span
               ><span id="progress-percent"></span>
             </div>
             <progress id="progress" max="100" value="0"></progress>
-            <p id="progress-detail">
+            <p id="progress-detail" data-i18n="progress.local">
               O processamento ocorre neste dispositivo.
             </p>
           </div>
-          <p class="clinical-note">
+          <p class="clinical-note" data-i18n="form.clinicalNote">
             Estimativa experimental. Não é um laudo e não deve orientar decisões
             médicas sem avaliação profissional.
           </p>
         </form>
       </section>
 
-      <section class="model-bar" aria-label="Modelo local">
+      <section
+        class="model-bar"
+        data-i18n-aria-label="model.label"
+        aria-label="Modelo local"
+      >
         <div class="model-icon" aria-hidden="true">▦</div>
         <div class="model-description">
-          <strong>ianpan/bone-age <span>3 redes · WebAssembly</span></strong>
-          <p id="model-status">
+          <strong
+            >ianpan/bone-age
+            <span data-i18n="model.networks">3 redes · WebAssembly</span></strong
+          >
+          <p id="model-status" data-i18n="model.initial">
             Primeiro uso: download de ~340 MB. Depois, reutilize os pesos em
             cache.
           </p>
         </div>
-        <button id="prepare" class="secondary-button" type="button">
+        <button
+          id="prepare"
+          class="secondary-button"
+          type="button"
+          data-i18n="model.download"
+        >
           Baixar modelo</button
         ><button
           id="clear-cache"
           class="text-button"
           type="button"
+          data-i18n="model.clearCache"
+          data-i18n-title="model.clearCacheTitle"
           title="Apagar somente os pesos públicos salvos no navegador"
         >
           Limpar cache
@@ -269,55 +376,72 @@
       >
         <div class="result-heading">
           <div>
-            <p class="eyebrow">PROCESSAMENTO CONCLUÍDO NESTE DISPOSITIVO</p>
-            <h2 id="result-title">Resultado da estimativa</h2>
+            <p class="eyebrow" data-i18n="result.eyebrow">
+              PROCESSAMENTO CONCLUÍDO NESTE DISPOSITIVO
+            </p>
+            <h2 id="result-title" data-i18n="result.title">
+              Resultado da estimativa
+            </h2>
           </div>
-          <button id="download-report" type="button" class="secondary-button">
+          <button
+            id="download-report"
+            type="button"
+            class="secondary-button"
+            data-i18n="result.save"
+          >
             Salvar relatório ↓
           </button>
         </div>
         <div class="result-grid">
           <div class="primary-result">
-            <span>Idade óssea estimada</span><strong id="result-age"></strong>
+            <span data-i18n="result.estimated">Idade óssea estimada</span
+            ><strong id="result-age"></strong>
             <p id="result-months"></p>
           </div>
           <div>
-            <span>Idade cronológica</span><strong id="result-chrono"></strong>
+            <span data-i18n="result.chrono">Idade cronológica</span
+            ><strong id="result-chrono"></strong>
             <p id="result-date"></p>
           </div>
           <div>
-            <span>Diferença estimada</span
+            <span data-i18n="result.difference">Diferença estimada</span
             ><strong id="result-difference"></strong>
-            <p>Comparação descritiva, sem classificação diagnóstica.</p>
+            <p data-i18n="result.differenceNote">
+              Comparação descritiva, sem classificação diagnóstica.
+            </p>
           </div>
         </div>
-        <p class="result-note">
+        <p class="result-note" data-i18n="result.note">
           O resultado depende da qualidade, orientação e recorte da imagem. A
           diferença entre idades, isoladamente, não define atraso ou avanço
           anormal de maturação.
         </p>
         <details>
-          <summary>Detalhes da execução local</summary>
+          <summary data-i18n="result.details">Detalhes da execução local</summary>
           <p id="execution-details"></p>
         </details>
       </section>
 
       <section class="about" id="sobre">
         <div>
-          <p class="eyebrow">TRANSPARÊNCIA POR PRINCÍPIO</p>
-          <h2>O que acontece<br />com a sua imagem?</h2>
-          <p>
+          <p class="eyebrow" data-i18n="about.eyebrow">
+            TRANSPARÊNCIA POR PRINCÍPIO
+          </p>
+          <h2 data-i18n-html="about.title">
+            O que acontece<br />com a sua imagem?
+          </h2>
+          <p data-i18n-html="about.text">
             Ela permanece na memória desta página.<br />Ao recarregar ou fechar
             a aba, os dados da análise são descartados.
           </p>
-          <button id="reset" class="text-button" type="button">
+          <button id="reset" class="text-button" type="button" data-i18n="about.reset">
             Descartar análise atual ↗
           </button>
         </div>
         <div class="faq">
           <details open>
-            <summary>Como a estimativa é calculada?</summary>
-            <p>
+            <summary data-i18n="faq.q1">Como a estimativa é calculada?</summary>
+            <p data-i18n-html="faq.a1">
               Três redes ConvNeXtV2 do modelo
               <a
                 href="https://huggingface.co/ianpan/bone-age"
@@ -331,8 +455,8 @@
             </p>
           </details>
           <details>
-            <summary>Quais imagens posso abrir?</summary>
-            <p>
+            <summary data-i18n="faq.q2">Quais imagens posso abrir?</summary>
+            <p data-i18n="faq.a2">
               DICOM Part 10, com ou sem extensão, monocromático de 8/16 bits sem
               compressão ou JPEG baseline; JPEG, PNG, TIFF de uma página, WebP,
               BMP e AVIF. DICOM JPEG lossless, JPEG-LS, JPEG 2000 e multiframe
@@ -341,20 +465,20 @@
             </p>
           </details>
           <details>
-            <summary>Funciona sem internet?</summary>
-            <p>
+            <summary data-i18n="faq.q3">Funciona sem internet?</summary>
+            <p data-i18n="faq.a3">
               Sim, após abrir o site e concluir o download do modelo com cache
               disponível. A internet é usada para baixar o site e, do
               repositório público do projeto no GitHub, os pesos do modelo.
-              Nenhuma imagem, data ou resultado é enviado. O navegador
-              pode remover o cache se faltar espaço. A primeira execução pode
+              Nenhuma imagem, data ou resultado é enviado. O navegador pode
+              remover o cache se faltar espaço. A primeira execução pode
               demorar; computadores com navegador atualizado e memória
               disponível são mais adequados.
             </p>
           </details>
           <details>
-            <summary>Qual é a limitação clínica?</summary>
-            <p>
+            <summary data-i18n="faq.q4">Qual é a limitação clínica?</summary>
+            <p data-i18n="faq.a4">
               Esta ferramenta é experimental e o modelo não é aprovado para uso
               clínico. O erro médio publicado no conjunto de teste não
               representa a margem de erro para uma pessoa. A validação técnica
@@ -363,12 +487,57 @@
           </details>
         </div>
       </section>
+      <section class="credits" id="creditos" aria-labelledby="credits-title">
+        <div>
+          <p class="eyebrow" data-i18n="credits.eyebrow">CRÉDITO DO MODELO</p>
+          <h2 id="credits-title" data-i18n="credits.title">
+            O modelo de IA é de Ian Pan.
+          </h2>
+        </div>
+        <div>
+          <p data-i18n-html="credits.text">
+            A estimativa vem do modelo
+            <a
+              href="https://huggingface.co/ianpan/bone-age"
+              target="_blank"
+              rel="noreferrer"
+              >ianpan/bone-age</a
+            >, criado e treinado por
+            <a href="https://huggingface.co/ianpan" target="_blank" rel="noreferrer"
+              >Ian Pan</a
+            >
+            sobre 14.036 radiografias do
+            <a
+              href="https://www.rsna.org/rsnai/ai-image-challenge/rsna-pediatric-bone-age-challenge-2017"
+              target="_blank"
+              rel="noreferrer"
+              >RSNA Pediatric Bone Age Challenge 2017</a
+            >, com backbone ConvNeXtV2 e licença Apache-2.0.
+          </p>
+          <p data-i18n="credits.role">
+            Este site não treinou nem ajustou nada: ele converte os pesos
+            públicos para ONNX e os executa no seu navegador. O mérito da
+            estimativa é do autor do modelo.
+          </p>
+        </div>
+      </section>
     </main>
     <footer class="site-footer wrap">
       <span
         >bone age
-        <span class="muted">/ uma ferramenta aberta de pesquisa</span></span
-      ><span>Modelo Apache-2.0 · Código MIT</span>
+        <span class="muted" data-i18n="footer.tagline"
+          >/ uma ferramenta aberta de pesquisa</span
+        ></span
+      ><span
+        ><span data-i18n="footer.by">por</span>
+        <a
+          href="https://github.com/feliperun"
+          target="_blank"
+          rel="noreferrer"
+          class="footer-link"
+          >@feliperun <span aria-hidden="true">↗</span></a
+        ></span
+      ><span data-i18n="footer.license">Modelo Apache-2.0 · Código MIT</span>
     </footer>
     <script type="module" src="/src/main.ts"></script>
   </body>

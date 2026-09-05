@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f6f2" />
+    <meta
+      name="description"
+      content="Estimativa experimental de idade óssea com processamento local no navegador. Suas radiografias permanecem no seu dispositivo."
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
+    />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <title>Bone Age — idade óssea, localmente</title>
+  </head>
+  <body>
+    <header class="site-header wrap">
+      <a class="brand" href="./" aria-label="Bone Age, início"
+        ><span class="brand-mark" aria-hidden="true">b<span>°</span></span
+        >bone age<span class="brand-tag">LOCAL</span></a
+      >
+      <nav aria-label="Navegação">
+        <a href="#sobre">Como funciona</a
+        ><a
+          href="https://github.com/feliperun/bone-age"
+          target="_blank"
+          rel="noreferrer"
+          >Código aberto <span aria-hidden="true">↗</span></a
+        >
+      </nav>
+    </header>
+    <main class="wrap">
+      <section class="hero" aria-labelledby="title">
+        <div>
+          <p class="eyebrow">
+            <span class="status-dot"></span> INTELIGÊNCIA ARTIFICIAL ·
+            PROCESSAMENTO LOCAL
+          </p>
+          <h1 id="title">Idade óssea.<br /><span>No seu navegador.</span></h1>
+          <p class="hero-description">
+            Da radiografia à estimativa de maturação óssea.<br />Seus arquivos
+            ficam com você, do início ao fim.
+          </p>
+        </div>
+        <aside class="local-note">
+          <svg
+            width="24"
+            height="28"
+            viewBox="0 0 24 28"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M12 2 22 6v8c0 6-10 12-10 12S2 20 2 14V6L12 2Z"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+            <path d="m7 13 3 3 7-7" stroke="currentColor" stroke-width="1.5" />
+          </svg>
+          <div>
+            <strong>Seu dispositivo. Seus dados.</strong>
+            <p>
+              Sem upload para servidores.<br />Sem cadastro. Sem rastreamento.
+            </p>
+          </div>
+        </aside>
+      </section>
+
+      <div class="workspace-heading">
+        <h2>Nova análise</h2>
+        <span class="experiment-badge">USO EXPERIMENTAL</span>
+      </div>
+      <ol class="steps" aria-label="Etapas da análise">
+        <li class="active" id="step-1"><span>01</span> Abrir radiografia</li>
+        <li id="step-2"><span>02</span> Preparar imagem</li>
+        <li id="step-3"><span>03</span> Calcular idade óssea</li>
+      </ol>
+
+      <div id="error" class="message error" role="alert" hidden></div>
+      <div id="notice" class="message notice" role="status" hidden></div>
+
+      <section class="workspace" aria-label="Radiografia e dados do exame">
+        <div class="image-panel">
+          <div class="panel-title">
+            <h3>Radiografia da mão esquerda</h3>
+            <span id="image-format" class="small-label">ARQUIVO LOCAL</span>
+          </div>
+          <input
+            type="file"
+            id="file-input"
+            class="visually-hidden"
+            aria-label="Selecionar radiografia"
+          />
+          <div
+            id="dropzone"
+            class="dropzone"
+            tabindex="0"
+            role="button"
+            aria-label="Selecionar ou arrastar radiografia"
+          >
+            <div class="upload-symbol" aria-hidden="true">
+              <svg width="42" height="46" viewBox="0 0 42 46" fill="none">
+                <path
+                  d="M8 3h18l9 9v29H8V3Z"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                />
+                <path
+                  d="M25 3v10h10M21 34V21m-6 6 6-6 6 6"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                />
+              </svg>
+            </div>
+            <strong>Arraste sua radiografia até aqui</strong
+            ><span>ou <u>selecione um arquivo</u> no dispositivo</span>
+            <div class="file-types">
+              <span>DICOM</span><span>JPEG</span><span>PNG</span
+              ><span>TIFF</span><span>+ outros</span>
+            </div>
+            <small>Arquivo original recomendado · até 100 MB</small>
+          </div>
+          <div id="viewer" hidden>
+            <div class="canvas-container">
+              <canvas
+                id="image-canvas"
+                aria-label="Radiografia. Arraste para selecionar a mão esquerda ou use os campos de recorte abaixo."
+              ></canvas>
+            </div>
+            <div class="image-toolbar">
+              <span id="file-info"></span>
+              <div>
+                <button
+                  type="button"
+                  id="rotate"
+                  class="icon-button"
+                  title="Girar imagem 90 graus"
+                >
+                  ↻ <span>Girar</span></button
+                ><button type="button" id="full-crop" class="icon-button">
+                  Imagem inteira</button
+                ><button type="button" id="replace" class="icon-button">
+                  Trocar
+                </button>
+              </div>
+            </div>
+            <p class="crop-instruction">
+              Arraste sobre a imagem para recortar
+              <strong>apenas a mão esquerda</strong>. Inclua os cinco dedos e o
+              punho; retire o excesso de antebraço.
+            </p>
+            <details class="crop-details">
+              <summary>Ajustar recorte por coordenadas</summary>
+              <div class="crop-fields">
+                <label
+                  >X inicial<input
+                    id="x0"
+                    type="number"
+                    min="0"
+                    step="1" /></label
+                ><label
+                  >Y inicial<input
+                    id="y0"
+                    type="number"
+                    min="0"
+                    step="1" /></label
+                ><label
+                  >X final<input
+                    id="x1"
+                    type="number"
+                    min="0"
+                    step="1" /></label
+                ><label
+                  >Y final<input id="y1" type="number" min="0" step="1"
+                /></label>
+              </div>
+            </details>
+          </div>
+          <div class="image-footer">
+            <span class="tiny-lock" aria-hidden="true">◈</span> A imagem é
+            aberta localmente e não sai deste navegador.
+          </div>
+        </div>
+
+        <form id="analysis-form" class="data-panel">
+          <div class="panel-title">
+            <h3>Dados do exame</h3>
+            <span class="small-label">02</span>
+          </div>
+          <fieldset id="exam-fields">
+            <label class="field-label" for="sex"
+              >Sexo biológico <span>obrigatório</span></label
+            >
+            <select id="sex" required>
+              <option value="">Selecione</option>
+              <option value="male">Masculino</option>
+              <option value="female">Feminino</option>
+            </select>
+            <p class="field-help">
+              Usado pelo modelo para estimar a maturação óssea.
+            </p>
+            <label class="field-label" for="dob"
+              >Data de nascimento <span>opcional</span></label
+            ><input id="dob" type="date" />
+            <label class="field-label" for="exam-date">Data do exame</label
+            ><input id="exam-date" type="date" required />
+            <div class="chrono-line">
+              <span>Idade na data do exame</span><strong id="chrono">—</strong>
+            </div>
+            <label class="confirm-label"
+              ><input type="checkbox" id="confirm-hand" required /><span
+                >Conferi que o recorte contém a
+                <strong>mão esquerda em PA</strong>, com dedos para cima e punho
+                visível.</span
+              ></label
+            >
+          </fieldset>
+          <button id="analyze" type="submit" class="primary-button" disabled>
+            Calcular idade óssea <span aria-hidden="true">→</span>
+          </button>
+          <button id="cancel" type="button" class="text-button" hidden>
+            Cancelar processamento
+          </button>
+          <div id="progress-area" aria-live="polite" hidden>
+            <div class="progress-label">
+              <span id="progress-label">Preparando…</span
+              ><span id="progress-percent"></span>
+            </div>
+            <progress id="progress" max="100" value="0"></progress>
+            <p id="progress-detail">
+              O processamento ocorre neste dispositivo.
+            </p>
+          </div>
+          <p class="clinical-note">
+            Estimativa experimental. Não é um laudo e não deve orientar decisões
+            médicas sem avaliação profissional.
+          </p>
+        </form>
+      </section>
+
+      <section class="model-bar" aria-label="Modelo local">
+        <div class="model-icon" aria-hidden="true">▦</div>
+        <div class="model-description">
+          <strong>ianpan/bone-age <span>3 redes · WebAssembly</span></strong>
+          <p id="model-status">
+            Primeiro uso: download de ~340 MB. Depois, reutilize os pesos em
+            cache.
+          </p>
+        </div>
+        <button id="prepare" class="secondary-button" type="button">
+          Baixar modelo</button
+        ><button
+          id="clear-cache"
+          class="text-button"
+          type="button"
+          title="Apagar somente os pesos públicos salvos no navegador"
+        >
+          Limpar cache
+        </button>
+      </section>
+
+      <section
+        id="result"
+        class="result-panel"
+        aria-labelledby="result-title"
+        hidden
+      >
+        <div class="result-heading">
+          <div>
+            <p class="eyebrow">PROCESSAMENTO CONCLUÍDO NESTE DISPOSITIVO</p>
+            <h2 id="result-title">Resultado da estimativa</h2>
+          </div>
+          <button id="download-report" type="button" class="secondary-button">
+            Salvar relatório ↓
+          </button>
+        </div>
+        <div class="result-grid">
+          <div class="primary-result">
+            <span>Idade óssea estimada</span><strong id="result-age"></strong>
+            <p id="result-months"></p>
+          </div>
+          <div>
+            <span>Idade cronológica</span><strong id="result-chrono"></strong>
+            <p id="result-date"></p>
+          </div>
+          <div>
+            <span>Diferença estimada</span
+            ><strong id="result-difference"></strong>
+            <p>Comparação descritiva, sem classificação diagnóstica.</p>
+          </div>
+        </div>
+        <p class="result-note">
+          O resultado depende da qualidade, orientação e recorte da imagem. A
+          diferença entre idades, isoladamente, não define atraso ou avanço
+          anormal de maturação.
+        </p>
+        <details>
+          <summary>Detalhes da execução local</summary>
+          <p id="execution-details"></p>
+        </details>
+      </section>
+
+      <section class="about" id="sobre">
+        <div>
+          <p class="eyebrow">TRANSPARÊNCIA POR PRINCÍPIO</p>
+          <h2>O que acontece<br />com a sua imagem?</h2>
+          <p>
+            Ela permanece na memória desta página.<br />Ao recarregar ou fechar
+            a aba, os dados da análise são descartados.
+          </p>
+          <button id="reset" class="text-button" type="button">
+            Descartar análise atual ↗
+          </button>
+        </div>
+        <div class="faq">
+          <details open>
+            <summary>Como a estimativa é calculada?</summary>
+            <p>
+              Três redes ConvNeXtV2 do modelo
+              <a
+                href="https://huggingface.co/ianpan/bone-age"
+                target="_blank"
+                rel="noreferrer"
+                >ianpan/bone-age</a
+              >
+              analisam a mão esquerda e o sexo informado. O resultado é a média
+              das três previsões, em meses. O site aplica ajuste de histograma e
+              dimensiona a imagem para 512 × 512 pixels.
+            </p>
+          </details>
+          <details>
+            <summary>Quais imagens posso abrir?</summary>
+            <p>
+              DICOM Part 10, com ou sem extensão, monocromático de 8/16 bits sem
+              compressão ou JPEG baseline; JPEG, PNG, TIFF de uma página, WebP,
+              BMP e AVIF. DICOM JPEG lossless, JPEG-LS, JPEG 2000 e multiframe
+              ainda exigem exportação para um formato aceito. Prefira a
+              radiografia original da mão esquerda em PA.
+            </p>
+          </details>
+          <details>
+            <summary>Funciona sem internet?</summary>
+            <p>
+              Sim, após abrir o site e concluir o download do modelo com cache
+              disponível. A internet é usada para baixar o site e seus pesos
+              públicos. Nenhuma imagem, data ou resultado é enviado. O navegador
+              pode remover o cache se faltar espaço. A primeira execução pode
+              demorar; computadores com navegador atualizado e memória
+              disponível são mais adequados.
+            </p>
+          </details>
+          <details>
+            <summary>Qual é a limitação clínica?</summary>
+            <p>
+              Esta ferramenta é experimental e o modelo não é aprovado para uso
+              clínico. O erro médio publicado no conjunto de teste não
+              representa a margem de erro para uma pessoa. A validação técnica
+              da conversão para ONNX não equivale a validação clínica.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+    <footer class="site-footer wrap">
+      <span
+        >bone age
+        <span class="muted">/ uma ferramenta aberta de pesquisa</span></span
+      ><span>Modelo Apache-2.0 · Código MIT</span>
+    </footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

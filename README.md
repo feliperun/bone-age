@@ -2,6 +2,69 @@
 
 Bone age assessment from hand radiographs using the [ianpan/bone-age](https://huggingface.co/ianpan/bone-age) deep learning model — a ConvNeXtV2-tiny 3-model ensemble trained on the RSNA Pediatric Bone Age 2017 dataset (14,036 left-hand PA radiographs, MAE 4.16 months).
 
+## Browser app — fully local inference
+
+**[Open the app](https://feliperun.github.io/bone-age/)**
+
+Open a radiograph, crop the **left hand**, confirm orientation and sex, and run all
+three networks locally through ONNX Runtime Web / WebAssembly. Birth date is optional
+and is used only for the descriptive chronological-age comparison. The report can
+be downloaded as Markdown.
+
+- No backend inference, accounts, analytics, or patient-data uploads. Files and
+  exam details stay in page memory. Reloading or discarding the analysis clears them.
+- First use downloads approximately **340 MB** of model weights. Public weights
+  are SHA-256 checked and cached when browser storage allows. The app and runtime
+  are cached by a service worker for offline reopening after setup.
+- ONNX FP32, original three-fold ensemble, sequential inference in a dedicated
+  worker, one WASM thread. This works on Pages without cross-origin isolation.
+  A modern desktop browser with free RAM is recommended; mobile memory is limited.
+- Supports PNG, JPEG, single-page TIFF, WebP, BMP, AVIF and DICOM Part 10 (including
+  extensionless files), monochrome 8/16-bit uncompressed little/big endian and
+  JPEG baseline. JPEG lossless, JPEG-LS, JPEG 2000 and multiframe DICOM are explicitly
+  rejected; export those to a supported format first.
+- Histogram matching follows `skimage`; bilinear resizing can differ from OpenCV
+  by one gray level. This is a technical reimplementation, not clinical validation.
+- The static site contains only app assets and public model files. Repository-root
+  radiographs and generated patient reports are **never included** in the Pages artifact.
+
+### Build locally
+
+Use Python 3.12 and Node.js 22. From the repository root:
+
+```sh
+python3.12 -m venv .venv
+.venv/bin/python -m pip install torch==2.6.0+cpu torchvision==0.21.0+cpu --index-url https://download.pytorch.org/whl/cpu
+.venv/bin/python -m pip install -r requirements-web.txt
+.venv/bin/python scripts/export_web_model.py
+cd web
+npm ci
+npm test
+npm run build
+npm run preview
+```
+
+The export is pinned to model revision `2ab81275b84e9f518f04584177221a1d8c1dc1a5`.
+Each ONNX fold is checked against the original PyTorch network for both sexes;
+export fails if an absolute difference exceeds 0.002 months on the deterministic
+test tensor. `manifest.json` records the errors, file sizes and checksums.
+
+Browser tests: `cd web && npx playwright install chromium && npm run test:e2e`.
+The optional private DICOM parity/offline test takes `LOCAL_DICOM`, `LOCAL_DOB`,
+`LOCAL_CROP` (x0,y0,x1,y1) and `EXPECTED_MONTHS` environment variables. No private
+file or its metadata is checked into the source or published.
+
+### GitHub Pages deployment
+
+The `Publish local bone-age app` Actions workflow converts and validates the
+model, tests the frontend, checks the public artifact allowlist, and publishes
+`web/dist` to Pages. Weights are generated/cached as build artifacts, not committed
+to Git. Updates to `web/` on `main` deploy automatically. Pages must use **GitHub
+Actions** as the build source. The published site is approximately 352 MB.
+
+Model redistribution retains the Apache-2.0 license and modification notice in
+`web/public/model-license.txt` and `web/public/model-notice.txt`; app code is MIT.
+
 <p align="center">
   <img src="bone-age.png" width="600" alt="Bone age assessment screenshot">
 </p>

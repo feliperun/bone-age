@@ -13,3 +13,13 @@ venv/
 # Generated output
 *_result.md
 *_processed.png
+
+# Browser build, downloaded model weights and local validation
+node_modules/
+web/dist/
+web/public/models/
+*.onnx
+*.onnx.data
+test-results/
+playwright-report/
+.local-validation/

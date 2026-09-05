@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 
 // The app origin, plus the public weights host when it is a separate one.
@@ -169,7 +170,7 @@ test("local DICOM end-to-end WASM parity and offline inference", async ({
   const downloadPromise = page.waitForEvent("download");
   await page.locator("#download-report").click();
   expect((await downloadPromise).suggestedFilename()).toMatch(
-    /^idade-ossea-\d{4}-\d{2}-\d{2}\.md$/,
+    /^idade-ossea-\d{4}-\d{2}-\d{2}\.pdf$/,
   );
   await page.evaluate(() => navigator.serviceWorker.ready);
   await context.setOffline(true);
@@ -257,6 +258,21 @@ test("public synthetic JPEG runs all three networks after offline reopening", as
   );
   expect(months).toBeGreaterThan(0);
   expect(months).toBeLessThan(239);
+  // The saved report is a real PDF, built in the page from the analysed crop.
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#download-report").click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(
+    /^idade-ossea-\d{4}-\d{2}-\d{2}\.pdf$/,
+  );
+  const pdf = readFileSync(await download.path());
+  expect(pdf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+  expect(pdf.subarray(-5).toString("latin1")).toBe("%%EOF");
+  // The radiograph travels inside it, so the file is far from empty.
+  expect(pdf.length).toBeGreaterThan(20_000);
+  const text = pdf.toString("latin1");
+  expect(text).toContain("/DCTDecode");
+  expect(text).toContain("startxref");
   expect(errors).toEqual([]);
   expect(
     requests.every(

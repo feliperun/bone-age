@@ -233,28 +233,53 @@ const pt = {
   "processing.tooOld":
     "O modelo é pediátrico. Verifique as datas (idade até 20 anos).",
 
+  "pdf.productName": "bone age",
+  "pdf.title": "Relatório de idade óssea",
+  "pdf.subtitle":
+    "Estimativa gerada localmente no navegador, a partir de uma radiografia de mão esquerda.",
+  "pdf.generatedOn": "Gerado em {datetime}",
+  "pdf.ensembleCaption": "média das três redes",
+  "pdf.sexLabel": "Sexo biológico",
+  "pdf.dobLabel": "Data de nascimento",
+  "pdf.fileLabel": "Arquivo de origem",
+  "pdf.imageSizeLabel": "Imagem analisada",
+  "pdf.radiograph": "Radiografia analisada",
+  "pdf.radiographCaption":
+    "Recorte enviado às redes, já orientado. A imagem não foi enviada a nenhum servidor.",
+  "pdf.technical": "Execução",
+  "pdf.ensembleMean": "Média do ensemble",
+  "pdf.networkOutput": "Rede {index}",
+  "pdf.runtime": "Tempo total",
+  "pdf.cropLabel": "Recorte [x0, y0, x1, y1]",
+  "pdf.modelLabel": "Modelo",
+  "pdf.revisionLabel": "Revisão",
+  "pdf.environmentLabel": "Ambiente",
+  "pdf.environmentValue": "ONNX FP32 · WebAssembly/CPU · navegador",
+  "pdf.preprocessingLabel": "Pré-processamento",
+  "pdf.preprocessingValue":
+    "Decodificação local, recorte manual, ajuste de histograma, interpolação bilinear, padding 512×512.",
+  "pdf.references": "Referências e créditos",
+  "pdf.refModel":
+    "Modelo ianpan/bone-age, criado e treinado por Ian Pan — huggingface.co/ianpan/bone-age",
+  "pdf.refArchitecture":
+    "Arquitetura ConvNeXtV2-tiny, ensemble de três redes, 84,1 M de parâmetros.",
+  "pdf.refDataset":
+    "Treinado em 14.036 radiografias de mão do RSNA Pediatric Bone Age Challenge 2017; erro médio publicado de 4,16 meses no conjunto de teste.",
+  "pdf.refLicense":
+    "Pesos redistribuídos sob a Apache License 2.0, com aviso de modificação: conversão para ONNX, sem retreinamento.",
+  "pdf.refApplication":
+    "Aplicativo bone-age.app, código sob licença MIT — github.com/feliperun/bone-age",
+  "pdf.disclaimerHeading": "Aviso",
+  "pdf.pageNumber": "{page}/{total}",
+  "pdf.secondsValue": "{seconds} s",
+  "pdf.cropValue": "{x0}, {y0}, {x1}, {y1}",
+  "pdf.imageSizeValue": "{width} × {height} px",
+  "msg.reportFailed":
+    "Não foi possível gerar o PDF. Tente novamente ou use outra aba do navegador.",
+
   "report.filename": "idade-ossea",
-  "report.title": "# Estimativa experimental de idade óssea",
-  "report.estimated":
-    "- Idade óssea estimada: **{months} meses ({age})**.",
-  "report.sex": "- Sexo: {sex}.",
-  "report.dob": "- Nascimento: {date}.",
-  "report.exam": "- Exame: {date}.",
-  "report.chrono": "- Idade cronológica: {value}.",
-  "report.difference": "- Diferença: {value}.",
-  "report.notInformed": "não informado",
-  "report.notInformedFem": "não informada",
   "report.notComputed": "não calculada",
   "report.monthsValue": "{months} meses",
-  "report.model": "Modelo: {model}, revisão {revision}.",
-  "report.execution":
-    "Execução local no navegador: ONNX FP32, WebAssembly/CPU, três redes.",
-  "report.folds": "Saídas individuais (meses): {folds}.",
-  "report.seconds": "Tempo incluindo carregamento: {seconds} segundos.",
-  "report.crop":
-    "Recorte [x0, y0, x1, y1] na imagem orientada: [{crop}].",
-  "report.preprocessing":
-    "Pré-processamento: decodificação local, recorte manual, ajuste de histograma, interpolação bilinear, padding 512×512.",
   "report.disclaimer":
     "Resultado experimental. Não é um laudo nem estabelece diagnóstico. O erro médio publicado não é um intervalo de confiança individual.",
   "report.privacy": "Nenhuma imagem ou dado do exame foi enviado a servidores.",
@@ -485,26 +510,53 @@ const en: Record<Key, string> = {
   "processing.tooOld":
     "The model is paediatric. Check the dates (age up to 20 years).",
 
+  "pdf.productName": "bone age",
+  "pdf.title": "Bone age report",
+  "pdf.subtitle":
+    "Estimate produced locally in the browser, from a left-hand radiograph.",
+  "pdf.generatedOn": "Generated on {datetime}",
+  "pdf.ensembleCaption": "mean of the three networks",
+  "pdf.sexLabel": "Biological sex",
+  "pdf.dobLabel": "Date of birth",
+  "pdf.fileLabel": "Source file",
+  "pdf.imageSizeLabel": "Analysed image",
+  "pdf.radiograph": "Analysed radiograph",
+  "pdf.radiographCaption":
+    "The crop submitted to the networks, already oriented. The image was never sent to a server.",
+  "pdf.technical": "Execution",
+  "pdf.ensembleMean": "Ensemble mean",
+  "pdf.networkOutput": "Network {index}",
+  "pdf.runtime": "Total time",
+  "pdf.cropLabel": "Crop [x0, y0, x1, y1]",
+  "pdf.modelLabel": "Model",
+  "pdf.revisionLabel": "Revision",
+  "pdf.environmentLabel": "Environment",
+  "pdf.environmentValue": "ONNX FP32 · WebAssembly/CPU · browser",
+  "pdf.preprocessingLabel": "Preprocessing",
+  "pdf.preprocessingValue":
+    "Local decoding, manual crop, histogram matching, bilinear interpolation, 512×512 padding.",
+  "pdf.references": "References and credits",
+  "pdf.refModel":
+    "Model ianpan/bone-age, created and trained by Ian Pan — huggingface.co/ianpan/bone-age",
+  "pdf.refArchitecture":
+    "ConvNeXtV2-tiny architecture, three-network ensemble, 84.1M parameters.",
+  "pdf.refDataset":
+    "Trained on 14,036 hand radiographs from the RSNA Pediatric Bone Age Challenge 2017; published mean absolute error of 4.16 months on the test set.",
+  "pdf.refLicense":
+    "Weights redistributed under the Apache License 2.0, with a modification notice: converted to ONNX, not retrained.",
+  "pdf.refApplication":
+    "Application bone-age.app, code under the MIT licence — github.com/feliperun/bone-age",
+  "pdf.disclaimerHeading": "Notice",
+  "pdf.pageNumber": "{page}/{total}",
+  "pdf.secondsValue": "{seconds} s",
+  "pdf.cropValue": "{x0}, {y0}, {x1}, {y1}",
+  "pdf.imageSizeValue": "{width} × {height} px",
+  "msg.reportFailed":
+    "The PDF could not be generated. Try again, or use another browser tab.",
+
   "report.filename": "bone-age",
-  "report.title": "# Experimental bone age estimate",
-  "report.estimated": "- Estimated bone age: **{months} months ({age})**.",
-  "report.sex": "- Sex: {sex}.",
-  "report.dob": "- Birth: {date}.",
-  "report.exam": "- Examination: {date}.",
-  "report.chrono": "- Chronological age: {value}.",
-  "report.difference": "- Difference: {value}.",
-  "report.notInformed": "not provided",
-  "report.notInformedFem": "not provided",
   "report.notComputed": "not computed",
   "report.monthsValue": "{months} months",
-  "report.model": "Model: {model}, revision {revision}.",
-  "report.execution":
-    "Local execution in the browser: ONNX FP32, WebAssembly/CPU, three networks.",
-  "report.folds": "Individual outputs (months): {folds}.",
-  "report.seconds": "Time including loading: {seconds} seconds.",
-  "report.crop": "Crop [x0, y0, x1, y1] on the oriented image: [{crop}].",
-  "report.preprocessing":
-    "Preprocessing: local decoding, manual crop, histogram matching, bilinear interpolation, 512×512 padding.",
   "report.disclaimer":
     "Experimental result. It is not a report and establishes no diagnosis. The published mean error is not an individual confidence interval.",
   "report.privacy": "No image or examination datum was sent to any server.",

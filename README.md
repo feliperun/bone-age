@@ -8,8 +8,11 @@ Bone age assessment from hand radiographs using the [ianpan/bone-age](https://hu
 
 Open a radiograph, crop the **left hand**, confirm orientation and sex, and run all
 three networks locally through ONNX Runtime Web / WebAssembly. Birth date is optional
-and is used only for the descriptive chronological-age comparison. The report can
-be downloaded from the browser.
+and is used only for the descriptive chronological-age comparison. The report is
+saved as a PDF built in the page — the analysed crop, the three network outputs,
+the execution details, and the credit and licence of the model — with no
+dependency and no server: `web/src/report.ts` writes the PDF bytes by hand,
+embedding the radiograph as JPEG with `/DCTDecode`.
 
 The interface is bilingual, Portuguese and English. It follows the browser
 languages on first visit and the header switch overrides that, remembered in

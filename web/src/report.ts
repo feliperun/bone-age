@@ -178,10 +178,10 @@ export interface ReportInput {
 
 /* ------------------------------------------------- WinAnsi (cp1252) codec */
 
-const COMBINING = /[̀-ͯ]/g;
+const COMBINING = /[\u0300-\u036f]/g;
 
 // The 27 cp1252 positions between 0x80 and 0x9F that are not Latin-1.
-const WIN_ANSI_HIGH: Record<string, number> = {
+const WIN_ANSI_HIGH: Record<string, number | undefined> = {
   "€": 0x80,
   "‚": 0x82,
   "ƒ": 0x83,
@@ -211,26 +211,26 @@ const WIN_ANSI_HIGH: Record<string, number> = {
   "Ÿ": 0x9f,
 };
 
-// Characters worth spelling out instead of dropping to "?".
-const TRANSLITERATE: Record<string, string> = {
-  "−": "-",
-  "‐": "-",
-  "‑": "-",
-  "‒": "-",
-  "―": "-",
-  " ": " ",
-  " ": " ",
-  " ": " ",
-  " ": " ",
-  " ": " ",
-  "⁃": "-",
-  "⁄": "/",
-  "→": "->",
-  "←": "<-",
-  "≥": ">=",
-  "≤": "<=",
-  "≠": "!=",
-  "×": "×",
+// Characters outside cp1252 worth spelling out instead of dropping to "?".
+const TRANSLITERATE: Record<string, string | undefined> = {
+  "\u2212": "-", // minus sign
+  "\u2010": "-", // hyphen
+  "\u2011": "-", // non-breaking hyphen
+  "\u2012": "-", // figure dash
+  "\u2015": "-", // horizontal bar
+  "\u2043": "-", // hyphen bullet
+  "\u2044": "/", // fraction slash
+  "\u2002": " ", // en space
+  "\u2003": " ", // em space
+  "\u2007": " ", // figure space
+  "\u2009": " ", // thin space
+  "\u200a": " ", // hair space
+  "\u202f": " ", // narrow no-break space
+  "\u2192": "->",
+  "\u2190": "<-",
+  "\u2265": ">=",
+  "\u2264": "<=",
+  "\u2260": "!=",
 };
 
 function encodeChar(ch: string, depth: number): string {
@@ -659,7 +659,7 @@ function layoutStack(blocks: Block[], width: number): Stack {
   const lines: PlacedLine[] = [];
   let height = 0;
   for (const block of blocks) {
-    if (block.text === "") continue;
+    if (!block.text) continue;
     height += block.gapBefore;
     for (const bytes of wrapText(
       block.text,
@@ -696,7 +696,7 @@ function flowText(
   width: number,
   gapBefore = 0,
 ) {
-  if (text === "") return;
+  if (!text) return;
   doc.y -= gapBefore;
   for (const bytes of wrapText(text, style.bold, style.size, width)) {
     ensure(doc, style.leading);
@@ -718,7 +718,7 @@ function sectionHeading(doc: Doc, text: string) {
   );
   doc.y -= 4;
   hairline(doc, MARGIN_X, doc.y, COLUMN);
-  doc.y -= 11;
+  doc.y -= 9;
 }
 
 interface Row {
@@ -740,21 +740,21 @@ function drawRows(doc: Doc, rows: Row[]) {
   };
   const valueStyle: Style = { bold: false, size: 9, color: INK, leading: 12 };
   for (const row of rows) {
-    const labels = layoutStack(
+    const labelLines = layoutStack(
       [{ text: row.label, style: labelStyle, gapBefore: 0 }],
       ROW_LABEL_WIDTH,
     );
-    const values = layoutStack(
+    const valueLines = layoutStack(
       [{ text: row.value, style: valueStyle, gapBefore: 0 }],
       valueWidth,
     );
-    const inner = Math.max(labels.height, values.height, 12);
-    const total = inner + 13;
+    const inner = Math.max(labelLines.height, valueLines.height, 12);
+    const total = inner + 11;
     ensure(doc, total);
     hairline(doc, MARGIN_X, doc.y, COLUMN);
-    const top = doc.y - 7;
-    paintStack(doc, labels, MARGIN_X, top - 0.5);
-    paintStack(doc, values, MARGIN_X + ROW_LABEL_WIDTH + ROW_GAP, top);
+    const top = doc.y - 6;
+    paintStack(doc, labelLines, MARGIN_X, top - 0.5);
+    paintStack(doc, valueLines, MARGIN_X + ROW_LABEL_WIDTH + ROW_GAP, top);
     doc.y -= total;
   }
 }
@@ -823,7 +823,7 @@ function serialize(objects: PdfObject[]): Uint8Array {
   };
   const pushText = (text: string) => push(latin1Bytes(text));
 
-  pushText("%PDF-1.7\n%âãÏÓ\n");
+  pushText("%PDF-1.7\n%\u00e2\u00e3\u00cf\u00d3\n");
 
   const offsets: number[] = new Array(objects.length + 1).fill(0);
   for (let i = 0; i < objects.length; i++) {
@@ -897,40 +897,44 @@ export function buildReportPdf(input: ReportInput): Uint8Array {
 
   /* -- title ------------------------------------------------------------ */
 
+  const titleTop = doc.y;
   flowText(
     doc,
     labels.documentTitle,
-    { bold: true, size: 20, color: INK, leading: 24 },
+    { bold: true, size: 19, color: INK, leading: 23 },
     MARGIN_X,
-    COLUMN,
+    COLUMN - 120,
   );
+  if (labels.generatedOnTemplate && input.generatedAt) {
+    // Sits on the title baseline, so it costs no vertical space.
+    drawRight(
+      doc,
+      fill(labels.generatedOnTemplate, {
+        datetime: formatIsoDateTime(input.generatedAt, locale),
+      }),
+      RIGHT_EDGE,
+      titleTop - 19 * ASCENT,
+      { bold: false, size: 8, color: MUTED, leading: 11 },
+    );
+  }
   flowText(
     doc,
     labels.documentSubtitle,
     { bold: false, size: 9.5, color: MUTED, leading: 13.5 },
     MARGIN_X,
-    COLUMN * 0.82,
+    COLUMN * 0.88,
     5,
   );
-  if (labels.generatedOnTemplate && input.generatedAt) {
-    flowText(
-      doc,
-      fill(labels.generatedOnTemplate, {
-        datetime: formatIsoDateTime(input.generatedAt, locale),
-      }),
-      { bold: false, size: 8, color: MUTED, leading: 11 },
-      MARGIN_X,
-      COLUMN,
-      6,
-    );
-  }
 
   /* -- headline result -------------------------------------------------- */
 
-  const chronological = input.chronologicalMonths;
-  const hasChronological =
-    typeof chronological === "number" && Number.isFinite(chronological);
-  const difference = hasChronological ? input.months - chronological : undefined;
+  const chronological =
+    typeof input.chronologicalMonths === "number" &&
+    Number.isFinite(input.chronologicalMonths)
+      ? input.chronologicalMonths
+      : undefined;
+  const difference =
+    chronological === undefined ? undefined : input.months - chronological;
 
   const eyebrow: Style = { bold: false, size: 8, color: MUTED, leading: 11 };
   const caption: Style = { bold: false, size: 7.5, color: MUTED, leading: 10.5 };
@@ -966,14 +970,18 @@ export function buildReportPdf(input: ReportInput): Uint8Array {
       blocks: [
         { text: labels.chronologicalAgeLabel, style: eyebrow, gapBefore: 0 },
         {
-          text: hasChronological
-            ? monthsValue(chronological, 1)
-            : labels.notInformedValue,
+          text:
+            chronological === undefined
+              ? labels.notInformedValue
+              : monthsValue(chronological, 1),
           style: { bold: true, size: 15, color: INK, leading: 19 },
           gapBefore: 5,
         },
         {
-          text: hasChronological ? (labels.chronologicalAgeText ?? "") : "",
+          text:
+            chronological === undefined
+              ? ""
+              : (labels.chronologicalAgeText ?? ""),
           style: caption,
           gapBefore: 3,
         },
@@ -1008,7 +1016,7 @@ export function buildReportPdf(input: ReportInput): Uint8Array {
     (largest, stack) => Math.max(largest, stack.height),
     0,
   );
-  doc.y -= 20;
+  doc.y -= 16;
   ensure(doc, bandHeight + 36);
   hairline(doc, MARGIN_X, doc.y, COLUMN);
   const bandTop = doc.y - 17;
@@ -1019,7 +1027,7 @@ export function buildReportPdf(input: ReportInput): Uint8Array {
   }
   doc.y = bandTop - bandHeight - 16;
   hairline(doc, MARGIN_X, doc.y, COLUMN);
-  doc.y -= 24;
+  doc.y -= 20;
 
   /* -- exam data -------------------------------------------------------- */
 
@@ -1051,14 +1059,15 @@ export function buildReportPdf(input: ReportInput): Uint8Array {
   /* -- radiograph ------------------------------------------------------- */
 
   if (hasImage) {
-    doc.y -= 22;
-    sectionHeading(doc, labels.radiographHeading);
     const captionStack = layoutStack(
       [{ text: labels.radiographCaption, style: caption, gapBefore: 0 }],
       COLUMN,
     );
     const reserve = captionStack.height + 12;
-    if (doc.y - CONTENT_BOTTOM - reserve < 150) beginPage(doc);
+    doc.y -= 16;
+    // Keep the heading, the plate and its caption together on one page.
+    ensure(doc, 44 + reserve + 160);
+    sectionHeading(doc, labels.radiographHeading);
     const room = Math.max(doc.y - CONTENT_BOTTOM - reserve, 80);
     const maxBox = Math.min(340, room);
     const scale = Math.min(

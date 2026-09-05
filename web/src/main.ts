@@ -6,6 +6,7 @@ import {
   validateCrop,
 } from "./processing";
 import type { Crop, GrayImage, Result } from "./types";
+import { buildReportPdf, type ReportImage, type ReportLabels } from "./report";
 import {
   detectLang,
   LANG_STORAGE,
@@ -456,53 +457,130 @@ function showResult(r: Result, scroll = false) {
   el("step-3").classList.add("active");
   if (scroll) el("result").scrollIntoView({ behavior: "smooth", block: "start" });
 }
+// The radiograph as the networks saw it: oriented, cropped, bounded in size so
+// the report stays a reasonable file.
+const REPORT_IMAGE_MAX = 1400;
+async function analysedJpeg(r: Result): Promise<ReportImage | undefined> {
+  const width = r.crop.x1 - r.crop.x0,
+    height = r.crop.y1 - r.crop.y0;
+  if (!source.width || width < 1 || height < 1) return undefined;
+  const scale = Math.min(1, REPORT_IMAGE_MAX / Math.max(width, height));
+  const out = document.createElement("canvas");
+  out.width = Math.max(1, Math.round(width * scale));
+  out.height = Math.max(1, Math.round(height * scale));
+  const context = out.getContext("2d");
+  if (!context) return undefined;
+  context.drawImage(
+    source,
+    r.crop.x0,
+    r.crop.y0,
+    width,
+    height,
+    0,
+    0,
+    out.width,
+    out.height,
+  );
+  const blob = await new Promise<Blob | null>((resolve) =>
+    out.toBlob(resolve, "image/jpeg", 0.92),
+  );
+  if (!blob) return undefined;
+  return {
+    jpeg: new Uint8Array(await blob.arrayBuffer()),
+    width: out.width,
+    height: out.height,
+  };
+}
+function reportLabels(r: Result, chrono: number | undefined): ReportLabels {
+  return {
+    productName: t("pdf.productName"),
+    experimentalBadge: t("workspace.badge"),
+    documentTitle: t("pdf.title"),
+    documentSubtitle: t("pdf.subtitle"),
+    generatedOnTemplate: t("pdf.generatedOn"),
+    estimatedBoneAgeLabel: t("result.estimated"),
+    estimatedAgeText: ageText(r.months),
+    estimatedBoneAgeCaption: t("pdf.ensembleCaption"),
+    chronologicalAgeLabel: t("result.chrono"),
+    chronologicalAgeText: chrono === undefined ? undefined : ageText(chrono),
+    differenceLabel: t("result.difference"),
+    differenceCaption: t("result.differenceNote"),
+    notInformedValue: t("result.noChrono"),
+    notComputedValue: t("report.notComputed"),
+    examDataHeading: t("form.title"),
+    sexLabel: t("pdf.sexLabel"),
+    sexValue: t(r.sex === "male" ? "sex.male" : "sex.female"),
+    dateOfBirthLabel: t("pdf.dobLabel"),
+    examinationDateLabel: t("form.examDate"),
+    sourceFileLabel: t("pdf.fileLabel"),
+    analysedImageSizeLabel: t("pdf.imageSizeLabel"),
+    radiographHeading: t("pdf.radiograph"),
+    radiographCaption: t("pdf.radiographCaption"),
+    technicalHeading: t("pdf.technical"),
+    ensembleMeanLabel: t("pdf.ensembleMean"),
+    networkOutputLabelTemplate: t("pdf.networkOutput"),
+    runtimeLabel: t("pdf.runtime"),
+    cropLabel: t("pdf.cropLabel"),
+    modelLabel: t("pdf.modelLabel"),
+    modelRevisionLabel: t("pdf.revisionLabel"),
+    executionEnvironmentLabel: t("pdf.environmentLabel"),
+    executionEnvironmentValue: t("pdf.environmentValue"),
+    preprocessingLabel: t("pdf.preprocessingLabel"),
+    preprocessingValue: t("pdf.preprocessingValue"),
+    referencesHeading: t("pdf.references"),
+    referenceModelLine: t("pdf.refModel"),
+    referenceArchitectureLine: t("pdf.refArchitecture"),
+    referenceDatasetLine: t("pdf.refDataset"),
+    referenceLicenseLine: t("pdf.refLicense"),
+    referenceApplicationLine: t("pdf.refApplication"),
+    disclaimerHeading: t("pdf.disclaimerHeading"),
+    disclaimerText: t("report.disclaimer"),
+    privacyNote: t("report.privacy"),
+    pageNumberTemplate: t("pdf.pageNumber"),
+    monthsValueTemplate: t("report.monthsValue"),
+    secondsValueTemplate: t("pdf.secondsValue"),
+    differenceValueTemplate: t("result.differenceMonths"),
+    cropValueTemplate: t("pdf.cropValue"),
+    imageSizeValueTemplate: t("pdf.imageSizeValue"),
+  };
+}
 el("download-report").addEventListener("click", () => {
   if (!result) return;
   const r = result,
     chrono = resultChrono(r);
-  const months = (value: number) =>
-    t("report.monthsValue", { months: number(value, 4) });
-  const report = [
-    t("report.title"),
-    "",
-    t("report.estimated", {
-      months: number(r.months, 4),
-      age: ageText(r.months),
-    }),
-    t("report.sex", { sex: t(r.sex === "male" ? "sex.male" : "sex.female") }),
-    t("report.dob", {
-      date: r.dob ? localDate(r.dob) : t("report.notInformed"),
-    }),
-    t("report.exam", { date: localDate(r.examDate) }),
-    t("report.chrono", {
-      value: chrono === undefined ? t("report.notInformedFem") : months(chrono),
-    }),
-    t("report.difference", {
-      value:
-        chrono === undefined
-          ? t("report.notComputed")
-          : months(r.months - chrono),
-    }),
-    "",
-    t("report.model", { model: r.model, revision: r.revision }),
-    t("report.execution"),
-    t("report.folds", { folds: r.folds.map((v) => number(v, 4)).join("; ") }),
-    t("report.seconds", { seconds: number(r.seconds) }),
-    t("report.crop", { crop: Object.values(r.crop).join(", ") }),
-    t("report.preprocessing"),
-    "",
-    t("report.disclaimer"),
-    t("report.privacy"),
-    "",
-  ].join("\n");
-  const url = URL.createObjectURL(
-    new Blob([report], { type: "text/markdown;charset=utf-8" }),
-  );
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${t("report.filename")}-${r.examDate}.md`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  void (async () => {
+    try {
+      const image = await analysedJpeg(r);
+      if (!image) throw new Error("no image");
+      const pdf = buildReportPdf({
+        months: r.months,
+        folds: r.folds,
+        seconds: r.seconds,
+        modelId: r.model,
+        modelRevision: r.revision,
+        sex: r.sex,
+        dateOfBirth: r.dob,
+        examinationDate: r.examDate,
+        chronologicalMonths: chrono,
+        crop: r.crop,
+        fileName: filename,
+        locale: t("app.locale"),
+        generatedAt: new Date().toISOString(),
+        image,
+        labels: reportLabels(r, chrono),
+      });
+      const url = URL.createObjectURL(
+        new Blob([pdf], { type: "application/pdf" }),
+      );
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${t("report.filename")}-${r.examDate}.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      error(t("msg.reportFailed"));
+    }
+  })();
 });
 el("reset").addEventListener("click", () => {
   ++fileGeneration;

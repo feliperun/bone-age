@@ -112,7 +112,14 @@ function setBusy(value: boolean) {
   busy = value;
   if (value) dragging = undefined;
   el<HTMLFieldSetElement>("exam-fields").disabled = value;
-  for (const id of ["prepare", "clear-cache", "rotate", "full-crop", "replace"])
+  for (const id of [
+    "prepare",
+    "clear-cache",
+    "rotate",
+    "full-crop",
+    "replace",
+    "demo",
+  ])
     el<HTMLButtonElement>(id).disabled = value;
   for (const id of ["x0", "y0", "x1", "y1"])
     el<HTMLInputElement>(id).disabled = value;
@@ -393,6 +400,38 @@ function run(mode: "prepare" | "infer") {
     sex: sex.value,
   });
 }
+// The sample radiograph documented for the CLI, with its examination data, for
+// anyone who wants to see the whole pipeline without a radiograph of their own.
+const DEMO = {
+  path: "demo/example.tif",
+  name: "example.tif",
+  type: "image/tiff",
+  sex: "female",
+  dob: "2023-07-17",
+};
+el("demo").addEventListener("click", () => {
+  if (busy) return;
+  void (async () => {
+    let file: File;
+    try {
+      const response = await fetch(new URL(DEMO.path, base));
+      if (!response.ok) throw new Error(String(response.status));
+      file = new File([await response.blob()], DEMO.name, { type: DEMO.type });
+    } catch {
+      error(t("msg.demoFailed"));
+      return;
+    }
+    await openFile(file);
+    if (!image) return;
+    sex.value = DEMO.sex;
+    dob.value = DEMO.dob;
+    confirmed.checked = true;
+    refresh();
+    // run() clears the message area, so the explanation goes after it.
+    run("infer");
+    notice(t("msg.demoLoaded", { date: localDate(DEMO.dob) }));
+  })();
+});
 el("prepare").addEventListener("click", () => run("prepare"));
 el("analysis-form").addEventListener("submit", (e) => {
   e.preventDefault();

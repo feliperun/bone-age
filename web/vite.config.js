@@ -9,6 +9,9 @@ import {
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
+// The sample radiograph the CLI documents, offered in the page as a demo.
+const SAMPLE = "example.tif";
+
 // Relative assets keep the app working under any path and in local previews.
 export default defineConfig(({ mode }) => {
   // The page's own CSP must allow the host that serves the public weights.
@@ -26,6 +29,24 @@ export default defineConfig(({ mode }) => {
           order: "pre",
           handler: (html) =>
             html.replace(" __WEIGHTS_ORIGIN__", weightsOrigin && ` ${weightsOrigin}`),
+        },
+      },
+      {
+        name: "sample-radiograph",
+        // The demo image lives at the repository root, shared with the CLI.
+        closeBundle() {
+          mkdirSync("dist/demo", { recursive: true });
+          copyFileSync(
+            resolve("..", SAMPLE),
+            resolve("dist/demo", SAMPLE),
+          );
+        },
+        configureServer(server) {
+          server.middlewares.use(`/demo/${SAMPLE}`, async (_req, res) => {
+            const { readFile } = await import("node:fs/promises");
+            res.setHeader("Content-Type", "image/tiff");
+            res.end(await readFile(resolve("..", SAMPLE)));
+          });
         },
       },
       {
@@ -49,7 +70,10 @@ export default defineConfig(({ mode }) => {
                 : [path];
             });
           const files = walk("dist").filter(
-            (path) => !path.endsWith(".onnx") && path !== "sw.js",
+            (path) =>
+              !path.endsWith(".onnx") &&
+              path !== "sw.js" &&
+              !path.startsWith("demo/"),
           );
           const version = createHash("sha256");
           version.update(readFileSync("sw-template.js"));

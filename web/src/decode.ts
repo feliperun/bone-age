@@ -113,7 +113,9 @@ async function decodeDicom(bytes: Uint8Array): Promise<GrayImage> {
       ].includes(ts || "")
     ) {
       throw new Error(
-        `Compressão DICOM não suportada (${ts || "desconhecida"}). Exporte sem compressão, ou use PNG/TIFF. JPEG lossless, JPEG-LS e JPEG 2000 ainda não são aceitos.`,
+        t("decode.dicomCompression", {
+          transfer: ts || t("decode.unknownTransfer"),
+        }),
       );
     }
     if (

@@ -161,6 +161,12 @@ const pt = {
   "sex.male": "masculino",
   "sex.female": "feminino",
 
+  "demo.hint": "Sem uma radiografia agora?",
+  "demo.button": "Analisar um exemplo",
+  "msg.demoLoaded":
+    "Exemplo do repositório: mão esquerda, sexo feminino, nascimento em {date}. As três redes vão rodar neste navegador; no primeiro uso, isso inclui baixar ~340 MB de pesos.",
+  "msg.demoFailed":
+    "Não foi possível carregar a radiografia de exemplo. Verifique a conexão e tente novamente.",
   "msg.checkDates": "Verifique as datas",
   "msg.dicomFilled":
     "Os campos disponíveis foram preenchidos pelo DICOM. Confira os dados e selecione a mão esquerda antes de calcular.",
@@ -213,6 +219,9 @@ const pt = {
   "decode.dicomJpegSize": "Dimensões DICOM e JPEG incompatíveis.",
   "decode.dicomBits":
     "DICOM precisa ter pixels inteiros de 8 ou 16 bits com alinhamento padrão.",
+  "decode.dicomCompression":
+    "Compressão DICOM não suportada ({transfer}). Exporte sem compressão, ou use PNG/TIFF. JPEG lossless, JPEG-LS e JPEG 2000 ainda não são aceitos.",
+  "decode.unknownTransfer": "desconhecida",
   "decode.dicomLut": "VOI LUT com profundidade não suportada.",
   "decode.dicomWindow": "Janela DICOM inválida.",
   "decode.empty": "A radiografia está vazia ou tem contraste constante.",
@@ -441,6 +450,12 @@ const en: Record<Key, string> = {
   "sex.male": "male",
   "sex.female": "female",
 
+  "demo.hint": "No radiograph at hand?",
+  "demo.button": "Analyse a sample",
+  "msg.demoLoaded":
+    "Repository sample: left hand, female, born on {date}. The three networks will run in this browser; on first use that includes downloading about 340 MB of weights.",
+  "msg.demoFailed":
+    "The sample radiograph could not be loaded. Check your connection and try again.",
   "msg.checkDates": "Check the dates",
   "msg.dicomFilled":
     "The available fields were filled in from the DICOM. Check the data and select the left hand before estimating.",
@@ -490,6 +505,9 @@ const en: Record<Key, string> = {
   "decode.dicomJpegSize": "DICOM and JPEG dimensions do not match.",
   "decode.dicomBits":
     "DICOM must have 8- or 16-bit integer pixels with standard alignment.",
+  "decode.dicomCompression":
+    "Unsupported DICOM compression ({transfer}). Export it uncompressed, or use PNG/TIFF. JPEG lossless, JPEG-LS and JPEG 2000 are not accepted yet.",
+  "decode.unknownTransfer": "unknown",
   "decode.dicomLut": "VOI LUT with unsupported depth.",
   "decode.dicomWindow": "Invalid DICOM window.",
   "decode.empty": "The radiograph is empty or has constant contrast.",

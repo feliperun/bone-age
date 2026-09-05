@@ -20,6 +20,10 @@ languages on first visit and the header switch overrides that, remembered in
 fails the build when a key is missing from either language, is referenced but
 undefined, or loses a `{placeholder}` in translation.
 
+- Without a radiograph at hand, one button loads `example.tif` — the same sample
+  the CLI documents — with its examination data and runs the whole pipeline. It is
+  served from the repository root at build time and deliberately left out of the
+  service worker precache, so only visitors who ask for it download it.
 - No backend inference, accounts, analytics, or patient-data uploads. Files and
   exam details stay in page memory. Reloading or discarding the analysis clears them.
 - First use downloads approximately **340 MB** of model weights. Public weights

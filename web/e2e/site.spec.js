@@ -127,6 +127,27 @@ test("opening another radiograph never silently drops typed examination data", a
   );
 });
 
+// The sample lets a visitor without a radiograph see the whole pipeline.
+test("the sample radiograph loads its data and starts the analysis", async ({
+  page,
+}) => {
+  await page.goto("./");
+  await page.locator("#demo").click();
+  await expect(page.locator("#viewer")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("#file-info")).toContainText("example.tif");
+  await expect(page.locator("#file-info")).toContainText("841 \u00d7 1035");
+  await expect(page.locator("#sex")).toHaveValue("female");
+  await expect(page.locator("#dob")).toHaveValue("2023-07-17");
+  await expect(page.locator("#confirm-hand")).toBeChecked();
+  // It goes straight into the analysis, and says where the data came from.
+  await expect(page.locator("#progress-area")).toBeVisible();
+  await expect(page.locator("#cancel")).toBeVisible();
+  await expect(page.locator("#notice")).toContainText("Exemplo do repositório");
+  await page.locator("#cancel").click();
+  await expect(page.locator("#progress-area")).toBeHidden();
+  await expect(page.locator("#notice")).toContainText("cancelado");
+});
+
 test("local DICOM end-to-end WASM parity and offline inference", async ({
   page,
   context,

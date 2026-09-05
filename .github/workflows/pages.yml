@@ -58,6 +58,14 @@ jobs:
           npm run build
           npx playwright install --with-deps chromium
           npm run test:e2e
+      - name: Upload layout screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: layout-screenshots
+          path: .local-validation/*.png
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Stage the public weights site
         run: |
           mkdir -p site/models

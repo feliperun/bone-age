@@ -127,6 +127,75 @@ test("opening another radiograph never silently drops typed examination data", a
   );
 });
 
+// Screenshots are the only way to inspect this layout: CI owns the only browser.
+// They are uploaded as a build artifact.
+const WIDTHS = [
+  ["360", 360, 780],
+  ["390", 390, 844],
+  ["768", 768, 1024],
+];
+test("small screens neither overflow nor overlap", async ({ page }) => {
+  const overlaps = async () =>
+    page.evaluate(() => {
+      const boxes = [...document.querySelectorAll("main *, header *")]
+        .filter((el) => {
+          const style = getComputedStyle(el);
+          return (
+            el.offsetParent !== null &&
+            style.position === "static" &&
+            el.getBoundingClientRect().height > 0 &&
+            !el.querySelector("*")
+          );
+        })
+        .map((el) => ({
+          tag: el.id || el.className || el.tagName,
+          box: el.getBoundingClientRect(),
+        }));
+      const hits = [];
+      for (let i = 0; i < boxes.length; i++)
+        for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i].box,
+            b = boxes[j].box;
+          const x = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+          const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+          // Leaf boxes that are not nested must not cover each other.
+          if (x > 2 && y > 2) hits.push(`${boxes[i].tag} / ${boxes[j].tag}`);
+        }
+      return hits;
+    });
+  for (const [name, width, height] of WIDTHS) {
+    await page.setViewportSize({ width, height });
+    await page.goto("./");
+    await expect(page.locator("#title")).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      `horizontal overflow at ${name}px`,
+    ).toBe(true);
+    await page.screenshot({
+      path: `../.local-validation/empty-${name}.png`,
+      fullPage: true,
+    });
+    expect(await overlaps(), `overlapping boxes at ${name}px`).toEqual([]);
+  }
+  // The workspace with a radiograph open is a different layout again.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("./");
+  await page.locator("#demo").click();
+  await expect(page.locator("#viewer")).toBeVisible({ timeout: 30_000 });
+  await page.locator("#cancel").click();
+  await page.screenshot({
+    path: "../.local-validation/viewer-390.png",
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});
+
 // The sample lets a visitor without a radiograph see the whole pipeline.
 test("the sample radiograph loads its data and starts the analysis", async ({
   page,
@@ -290,6 +359,11 @@ test("public synthetic JPEG runs all three networks after offline reopening", as
   const pdf = readFileSync(await download.path());
   expect(pdf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
   expect(pdf.subarray(-5).toString("latin1")).toBe("%%EOF");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: "../.local-validation/result-390.png",
+    fullPage: true,
+  });
   const text = pdf.toString("latin1");
   // The analysed crop travels inside it, at the pixel size the networks saw.
   expect(text).toContain("/DCTDecode");

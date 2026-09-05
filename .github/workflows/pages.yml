@@ -64,6 +64,8 @@ jobs:
         with:
           name: layout-screenshots
           path: .local-validation/*.png
+          # The directory is dot-prefixed, which the uploader skips by default.
+          include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
       - name: Stage the public weights site

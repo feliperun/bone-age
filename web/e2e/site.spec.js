@@ -137,20 +137,21 @@ const WIDTHS = [
 test("small screens neither overflow nor overlap", async ({ page }) => {
   const overlaps = async () =>
     page.evaluate(() => {
+      const name = (el) =>
+        el.id ||
+        (typeof el.className === "string" && el.className) ||
+        el.tagName.toLowerCase();
       const boxes = [...document.querySelectorAll("main *, header *")]
-        .filter((el) => {
-          const style = getComputedStyle(el);
-          return (
-            el.offsetParent !== null &&
-            style.position === "static" &&
+        .filter(
+          (el) =>
+            // Collapsed <details> content and anything else not on screen is
+            // not a layout problem.
+            el.checkVisibility({ contentVisibilityAuto: true }) &&
+            getComputedStyle(el).position === "static" &&
             el.getBoundingClientRect().height > 0 &&
-            !el.querySelector("*")
-          );
-        })
-        .map((el) => ({
-          tag: el.id || el.className || el.tagName,
-          box: el.getBoundingClientRect(),
-        }));
+            !el.querySelector("*"),
+        )
+        .map((el) => ({ tag: name(el), box: el.getBoundingClientRect() }));
       const hits = [];
       for (let i = 0; i < boxes.length; i++)
         for (let j = i + 1; j < boxes.length; j++) {
@@ -159,10 +160,15 @@ test("small screens neither overflow nor overlap", async ({ page }) => {
           const x = Math.min(a.right, b.right) - Math.max(a.left, b.left);
           const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
           // Leaf boxes that are not nested must not cover each other.
-          if (x > 2 && y > 2) hits.push(`${boxes[i].tag} / ${boxes[j].tag}`);
+          if (x > 2 && y > 2)
+            hits.push(
+              `${boxes[i].tag} [${Math.round(a.left)},${Math.round(a.top)},${Math.round(a.right)},${Math.round(a.bottom)}]` +
+                ` / ${boxes[j].tag} [${Math.round(b.left)},${Math.round(b.top)},${Math.round(b.right)},${Math.round(b.bottom)}]`,
+            );
         }
       return hits;
     });
+  const problems = [];
   for (const [name, width, height] of WIDTHS) {
     await page.setViewportSize({ width, height });
     await page.goto("./");
@@ -177,8 +183,11 @@ test("small screens neither overflow nor overlap", async ({ page }) => {
       path: `../.local-validation/empty-${name}.png`,
       fullPage: true,
     });
-    expect(await overlaps(), `overlapping boxes at ${name}px`).toEqual([]);
+    // Collected across every width so one bad layout does not hide the others,
+    // and so every screenshot is still taken.
+    problems.push(...(await overlaps()).map((hit) => `${name}px: ${hit}`));
   }
+  expect(problems).toEqual([]);
   // The workspace with a radiograph open is a different layout again.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("./");

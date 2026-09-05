@@ -1,5 +1,13 @@
 import { test, expect } from "@playwright/test";
 
+// The app origin, plus the public weights host when it is a separate one.
+// Nothing else may be contacted: no image or examination datum ever leaves the page.
+const allowedOrigins = (pageUrl) =>
+  new Set([
+    new URL(pageUrl).origin,
+    new URL(process.env.VITE_WEIGHTS_BASE || "./", pageUrl).origin,
+  ]);
+
 test("upload, crop controls, validation, responsive layout, local-only networking", async ({
   page,
   context,
@@ -75,7 +83,7 @@ test("upload, crop controls, validation, responsive layout, local-only networkin
       (r) =>
         r.method === "GET" &&
         !r.body &&
-        new URL(r.url).origin === new URL(page.url()).origin,
+        allowedOrigins(page.url()).has(new URL(r.url).origin),
     ),
   ).toBe(true);
 });
@@ -146,7 +154,7 @@ test("local DICOM end-to-end WASM parity and offline inference", async ({
       (r) =>
         r.method === "GET" &&
         !r.body &&
-        new URL(r.url).origin === new URL(page.url()).origin,
+        allowedOrigins(page.url()).has(new URL(r.url).origin),
     ),
   ).toBe(true);
   console.log(
@@ -217,7 +225,7 @@ test("public synthetic JPEG runs all three networks after offline reopening", as
       (r) =>
         r.method === "GET" &&
         !r.body &&
-        new URL(r.url).origin === new URL(page.url()).origin,
+        allowedOrigins(page.url()).has(new URL(r.url).origin),
     ),
   ).toBe(true);
 });

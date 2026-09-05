@@ -10,13 +10,42 @@ const sha256 = async (data: Uint8Array) =>
     .map((x) => x.toString(16).padStart(2, "0"))
     .join("");
 
+// Model metadata can live on another origin, outside the service worker precache.
+// Revalidate when online, fall back to the copy kept for offline use.
+const METADATA_CACHE = "bone-age-model-metadata";
+async function loadMetadata(url: URL) {
+  let cache: Cache | undefined;
+  try {
+    cache = await caches.open(METADATA_CACHE);
+  } catch {
+    /* Private modes without cache storage still work while online. */
+  }
+  try {
+    const response = await fetch(url, { cache: "no-cache" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    try {
+      await cache?.put(url, response.clone());
+    } catch {
+      /* No space for the offline copy; the response itself is still usable. */
+    }
+    return response;
+  } catch (networkError) {
+    const cached = await cache?.match(url);
+    if (cached) return cached;
+    throw networkError;
+  }
+}
+
 async function loadWeights(
-  base: string,
+  weightsBase: string,
   manifest: Manifest,
   entry: ModelFile,
   index: number,
 ) {
-  const url = new URL(`models/${entry.file}?sha256=${entry.sha256}`, base).href;
+  const url = new URL(
+    `models/${entry.file}?sha256=${entry.sha256}`,
+    weightsBase,
+  ).href;
   let cache: Cache | undefined;
   try {
     cache = await caches.open(`bone-age-weights-${manifest.revision}`);
@@ -88,25 +117,27 @@ async function loadWeights(
 
 self.onmessage = async ({ data }) => {
   try {
-    const { base, mode } = data;
-    const manifestResponse = await fetch(new URL("models/manifest.json", base));
-    if (!manifestResponse.ok)
+    const { base, weightsBase, mode } = data;
+    const manifestResponse = await loadMetadata(
+      new URL("models/manifest.json", weightsBase),
+    ).catch(() => undefined);
+    if (!manifestResponse)
       throw new Error("O modelo não está disponível nesta instalação.");
     const manifest: Manifest = await manifestResponse.json();
     if (manifest.models.length !== 3)
       throw new Error("Manifesto do modelo inválido.");
     ort.env.wasm.wasmPaths = new URL("runtime/", base).href;
-    // Pages does not supply COOP/COEP. Single-thread WASM works without SharedArrayBuffer.
+    // The host supplies no COOP/COEP. Single-thread WASM works without SharedArrayBuffer.
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.proxy = false;
     ort.env.logLevel = "error";
     const started = performance.now();
     let input: Float32Array | undefined;
     if (mode === "infer") {
-      const referenceResponse = await fetch(
-        new URL(`models/${manifest.reference}`, base),
-      );
-      if (!referenceResponse.ok)
+      const referenceResponse = await loadMetadata(
+        new URL(`models/${manifest.reference}`, weightsBase),
+      ).catch(() => undefined);
+      if (!referenceResponse)
         throw new Error("Referência de pré-processamento indisponível.");
       const reference = await referenceResponse.json();
       const crop = cropPixels(data.image, data.crop);
@@ -119,7 +150,12 @@ self.onmessage = async ({ data }) => {
     }
     const folds: number[] = [];
     for (let i = 0; i < manifest.models.length; i++) {
-      const weights = await loadWeights(base, manifest, manifest.models[i], i);
+      const weights = await loadWeights(
+        weightsBase,
+        manifest,
+        manifest.models[i],
+        i,
+      );
       if (mode === "infer") {
         tell({ type: "progress", stage: "compute", fold: i, fraction: 0 });
         const session = await ort.InferenceSession.create(weights, {

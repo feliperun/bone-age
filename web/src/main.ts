@@ -19,6 +19,9 @@ const ctx = canvas.getContext("2d")!;
 const source = document.createElement("canvas");
 const sourceCtx = source.getContext("2d")!;
 const base = new URL("./", document.baseURI).href;
+// Public weights may live on a separate host; same origin unless VITE_WEIGHTS_BASE is set.
+const weightsBase = new URL(import.meta.env.VITE_WEIGHTS_BASE || "./", base)
+  .href;
 const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -359,6 +362,7 @@ function run(mode: "prepare" | "infer") {
   };
   worker.postMessage({
     base,
+    weightsBase,
     mode,
     image: mode === "infer" ? image : undefined,
     crop,
@@ -379,7 +383,11 @@ el("cancel").addEventListener("click", () => {
 el("clear-cache").addEventListener("click", async () => {
   try {
     for (const key of await caches.keys())
-      if (key.startsWith("bone-age-weights-")) await caches.delete(key);
+      if (
+        key.startsWith("bone-age-weights-") ||
+        key === "bone-age-model-metadata"
+      )
+        await caches.delete(key);
     el("model-status").textContent =
       "Cache de pesos removido. O próximo cálculo precisará baixar ~340 MB.";
     notice("Os pesos do modelo foram removidos do cache deste navegador.");

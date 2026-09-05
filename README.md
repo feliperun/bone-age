@@ -4,7 +4,7 @@ Bone age assessment from hand radiographs using the [ianpan/bone-age](https://hu
 
 ## Browser app — fully local inference
 
-**[Open the app](https://feliperun.github.io/bone-age/)**
+**[Open the app](https://bone-age.app)**
 
 Open a radiograph, crop the **left hand**, confirm orientation and sex, and run all
 three networks locally through ONNX Runtime Web / WebAssembly. Birth date is optional
@@ -17,7 +17,7 @@ be downloaded as Markdown.
   are SHA-256 checked and cached when browser storage allows. The app and runtime
   are cached by a service worker for offline reopening after setup.
 - ONNX FP32, original three-fold ensemble, sequential inference in a dedicated
-  worker, one WASM thread. This works on Pages without cross-origin isolation.
+  worker, one WASM thread. This works without cross-origin isolation.
   A modern desktop browser with free RAM is recommended; mobile memory is limited.
 - Supports PNG, JPEG, single-page TIFF, WebP, BMP, AVIF and DICOM Part 10 (including
   extensionless files), monochrome 8/16-bit uncompressed little/big endian and
@@ -25,8 +25,9 @@ be downloaded as Markdown.
   rejected; export those to a supported format first.
 - Histogram matching follows `skimage`; bilinear resizing can differ from OpenCV
   by one gray level. This is a technical reimplementation, not clinical validation.
-- The static site contains only app assets and public model files. Repository-root
-  radiographs and generated patient reports are **never included** in the Pages artifact.
+- The app bundle contains only its own assets, and the weights site only public
+  model files. Repository-root radiographs and generated patient reports are
+  **never included** in either.
 
 ### Build locally
 
@@ -44,6 +45,9 @@ npm run build
 npm run preview
 ```
 
+A local build serves the weights from its own origin, out of `web/public/models`;
+set `VITE_WEIGHTS_BASE` to rehearse the split deployment.
+
 The export is pinned to model revision `2ab81275b84e9f518f04584177221a1d8c1dc1a5`.
 Each ONNX fold is checked against the original PyTorch network for both sexes;
 export fails if an absolute difference exceeds 0.002 months on the deterministic
@@ -54,13 +58,36 @@ The optional private DICOM parity/offline test takes `LOCAL_DICOM`, `LOCAL_DOB`,
 `LOCAL_CROP` (x0,y0,x1,y1) and `EXPECTED_MONTHS` environment variables. No private
 file or its metadata is checked into the source or published.
 
-### GitHub Pages deployment
+### Deployment
 
-The `Publish local bone-age app` Actions workflow converts and validates the
-model, tests the frontend, checks the public artifact allowlist, and publishes
-`web/dist` to Pages. Weights are generated/cached as build artifacts, not committed
-to Git. Updates to `web/` on `main` deploy automatically. Pages must use **GitHub
-Actions** as the build source. The published site is approximately 352 MB.
+The 11 MB app and the 325 MB of weights are hosted separately, because a single
+host would move 336 MB per new visitor:
+
+| | Host | Content |
+|---|---|---|
+| App | Vercel, [bone-age.app](https://bone-age.app) | `web/dist`: HTML/CSS/JS and the ONNX Runtime `.wasm` |
+| Weights | GitHub Pages, `feliperun.github.io/bone-age/` | `models/`: three `.onnx` folds, `manifest.json`, `reference.json` |
+
+`vercel.json` at the repository root holds the whole Vercel configuration —
+build command, output directory, security headers and the `VITE_WEIGHTS_BASE`
+build variable that points the app at the weights host. Nothing needs to be
+configured in the dashboard beyond importing the repository and adding the
+domain. Pointing the app at another host (a Hugging Face mirror, an R2 bucket)
+is a one-line change there; the value must be an origin that sends
+`access-control-allow-origin`. Unset — as in local builds and CI — the app reads
+`models/` from its own origin.
+
+The `Test the app and publish the public model weights` Actions workflow converts
+and numerically validates the model, runs the unit and browser tests against a
+same-origin copy, checks the published allowlist, and deploys only `models/`
+(plus the model license and a redirect to `bone-age.app`) to Pages. Weights are
+generated and cached as build artifacts, never committed to Git. Pages must use
+**GitHub Actions** as the build source. Vercel builds the app on every push to
+`main`, running `npm test` before `npm run build`; the browser tests stay in
+Actions, where the weights exist.
+
+The two deployments are independent: `manifest.json` travels with the weights, so
+an older app and freshly published weights always agree on checksums and revision.
 
 Model redistribution retains the Apache-2.0 license and modification notice in
 `web/public/model-license.txt` and `web/public/model-notice.txt`; app code is MIT.

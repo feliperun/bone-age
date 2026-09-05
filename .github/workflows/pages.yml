@@ -1,9 +1,11 @@
-name: Publish local bone-age app
+name: Test the app and publish the public model weights
 
 on:
   push:
     branches: [main]
-    paths: ['web/**', 'scripts/export_web_model.py', 'scripts/check_site.py', 'requirements-web.txt', '.github/workflows/pages.yml']
+    paths:
+      ['web/**', 'scripts/export_web_model.py', 'scripts/check_site.py',
+       'requirements-web.txt', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -46,6 +48,8 @@ jobs:
           HF_HUB_DISABLE_TELEMETRY: '1'
           HF_HUB_DISABLE_XET: '1'
         run: python scripts/export_web_model.py
+      # The app itself is deployed by Vercel; here it is only built and tested,
+      # against a same-origin copy of the weights.
       - name: Build and test browser app
         working-directory: web
         run: |
@@ -54,12 +58,18 @@ jobs:
           npm run build
           npx playwright install --with-deps chromium
           npm run test:e2e
-      - name: Verify public artifact contains only app and public model assets
-        run: python scripts/check_site.py web/dist
+      - name: Stage the public weights site
+        run: |
+          mkdir -p site/models
+          cp web/public/models/* site/models/
+          cp web/public/model-license.txt web/public/model-notice.txt site/
+          cp scripts/weights-index.html site/index.html
+      - name: Verify the artifact holds only public model files
+        run: python scripts/check_site.py site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web/dist
+          path: site
   deploy:
     runs-on: ubuntu-latest
     needs: build

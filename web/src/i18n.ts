@@ -285,6 +285,13 @@ const pt = {
   "pdf.secondsValue": "{seconds} s",
   "pdf.cropValue": "{x0}, {y0}, {x1}, {y1}",
   "pdf.imageSizeValue": "{width} × {height} px",
+  "pdf.siteName": "bone-age.app",
+  "pdf.siteUrl": "https://bone-age.app",
+  "pdf.promoEyebrow": "GRATUITO · SEM CADASTRO · PROCESSAMENTO LOCAL",
+  "pdf.promoHeading": "Calcule a idade óssea de outra radiografia",
+  "pdf.promoText":
+    "Abra a imagem no navegador, recorte a mão esquerda e receba a estimativa em minutos. Nenhum arquivo sai do seu dispositivo.",
+  "pdf.promoQr": "Aponte a câmera",
   "msg.reportFailed":
     "Não foi possível gerar o PDF. Tente novamente ou use outra aba do navegador.",
 
@@ -573,6 +580,13 @@ const en: Record<Key, string> = {
   "pdf.secondsValue": "{seconds} s",
   "pdf.cropValue": "{x0}, {y0}, {x1}, {y1}",
   "pdf.imageSizeValue": "{width} × {height} px",
+  "pdf.siteName": "bone-age.app",
+  "pdf.siteUrl": "https://bone-age.app",
+  "pdf.promoEyebrow": "FREE · NO SIGN-UP · LOCAL PROCESSING",
+  "pdf.promoHeading": "Estimate bone age from another radiograph",
+  "pdf.promoText":
+    "Open the image in the browser, crop the left hand and get the estimate in minutes. No file ever leaves your device.",
+  "pdf.promoQr": "Point your camera",
   "msg.reportFailed":
     "The PDF could not be generated. Try again, or use another browser tab.",
 

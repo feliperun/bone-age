@@ -214,6 +214,14 @@ const labels: ReportLabels = {
   privacyNote: "Nenhuma imagem ou dado do exame saiu deste navegador.",
   pageNumberTemplate: "Página {page} de {total}",
 
+  siteUrl: "bone-age.app",
+  siteLink: "https://bone-age.app",
+  promoEyebrow: "GRATUITO · SEM CADASTRO · PROCESSAMENTO LOCAL",
+  promoHeading: "Calcule a idade óssea de outra radiografia",
+  promoText:
+    "Abra a imagem no navegador, recorte a mão esquerda e receba a estimativa em minutos. Nenhum arquivo sai do seu dispositivo.",
+  promoQrCaption: "Aponte a câmera",
+
   monthsValueTemplate: "{months} meses",
   secondsValueTemplate: "{seconds} s",
   differenceValueTemplate: "{sign}{months} meses",
@@ -336,7 +344,7 @@ describe("embedded radiograph", () => {
         input({ image: { jpeg: makeJpeg(4000, 90), width: 4000, height: 90 } }),
       ),
     );
-    expect(wide.width).toBeLessThanOrEqual(483.276 - 20);
+    expect(wide.width).toBeLessThanOrEqual(499.276 - 32);
     expect(wide.width / wide.height).toBeCloseTo(4000 / 90, 1);
 
     const tall = draw(
@@ -344,10 +352,10 @@ describe("embedded radiograph", () => {
         input({ image: { jpeg: makeJpeg(90, 4000), width: 90, height: 4000 } }),
       ),
     );
-    expect(tall.height).toBeLessThanOrEqual(340 - 20);
+    expect(tall.height).toBeLessThanOrEqual(360 - 24);
     expect(tall.width / tall.height).toBeCloseTo(90 / 4000, 3);
     // Centred in the text column whatever the shape.
-    expect(tall.x).toBeCloseTo(56 + (483.276 - tall.width) / 2, 2);
+    expect(tall.x).toBeCloseTo(48 + (499.276 - tall.width) / 2, 2);
   });
 
   it("still produces a valid document without an image", () => {
@@ -444,8 +452,9 @@ describe("measurement and wrapping", () => {
 
   it("emits one drawn string per wrapped line", () => {
     const longText = `${labels.disclaimerText} ${labels.disclaimerText} ${labels.disclaimerText}`;
-    // The callout is inset 16 pt on each side of the 483.276 pt column.
-    const expected = wrapText(longText, false, 8.5, 483.276 - 32).length;
+    // The callout leaves room for the drawn warning sign: 40 pt on the left,
+    // 22 pt on the right of the 499.276 pt column.
+    const expected = wrapText(longText, false, 8, 499.276 - 62).length;
     expect(expected).toBeGreaterThan(6);
     const short = countDrawnStrings(
       buildReportPdf(input({ labels: { ...labels, disclaimerText: "Curto." } })),
@@ -478,6 +487,86 @@ describe("locale formatting", () => {
     expect(
       latin1(buildReportPdf(input({ chronologicalMonths: 140 }))),
     ).toContain("-5,8 meses");
+  });
+});
+
+describe("the site on the page", () => {
+  const count = (text: string, needle: string) =>
+    text.split(needle).length - 1;
+
+  it("prints the address and the closing invitation", () => {
+    const text = latin1(buildReportPdf(input()));
+    expect(count(text, "bone-age.app")).toBeGreaterThanOrEqual(3);
+    expect(text).toContain("Calcule a idade");
+    expect(text).toContain("Aponte a c\u00e2mera");
+    expect(text).toContain("GRATUITO");
+  });
+
+  it("makes the address clickable on every page", () => {
+    const pdf = buildReportPdf(input());
+    const parsed = parsePdf(pdf);
+    const links = parsed.objects.filter((object) =>
+      object.body.includes("/Subtype /Link"),
+    );
+    // One masthead per page, plus the closing card.
+    expect(links.length).toBe(parsed.pageCount + 1);
+    for (const object of links) {
+      expect(object.body).toContain("/A << /S /URI /URI (https://bone-age.app) >>");
+      const rect = /\/Rect \[([-\d. ]+)\]/.exec(object.body);
+      expect(rect).not.toBeNull();
+      const [x0, y0, x1, y1] = (rect as RegExpExecArray)[1]
+        .split(" ")
+        .map(Number);
+      expect(x1).toBeGreaterThan(x0);
+      expect(y1).toBeGreaterThan(y0);
+      expect(x1).toBeLessThanOrEqual(595.276);
+      expect(y1).toBeLessThanOrEqual(841.89);
+    }
+    const pages = parsed.objects.filter((object) =>
+      object.body.includes("/Type /Page /Parent"),
+    );
+    for (const page of pages) expect(page.body).toContain("/Annots [");
+  });
+
+  it("follows a different address into both the link and the code", () => {
+    const text = latin1(
+      buildReportPdf(
+        input({
+          labels: {
+            ...labels,
+            siteUrl: "example.test",
+            siteLink: "https://example.test/from-report",
+          },
+        }),
+      ),
+    );
+    expect(text).toContain("/URI (https://example.test/from-report)");
+    expect(text).toContain("example.test");
+    expect(text).not.toContain("https://bone-age.app");
+  });
+
+  it("draws the QR code, and prints the card without one when it cannot", () => {
+    const rectangles = (pdf: Uint8Array) => count(latin1(pdf), " re");
+    const withCode = buildReportPdf(input());
+    const withoutCode = buildReportPdf(
+      input({ labels: { ...labels, siteLink: "" } }),
+    );
+    // Every dark run of the matrix is one rectangle in the closing card.
+    expect(rectangles(withCode)).toBeGreaterThan(rectangles(withoutCode) + 60);
+    // Without an address there is no code and no annotation, but the
+    // invitation and the printed name still go out.
+    const bare = latin1(withoutCode);
+    expect(bare).not.toContain("/Subtype /Link");
+    expect(bare).toContain("Calcule a idade");
+    expect(bare).toContain("bone-age.app");
+  });
+
+  it("paints the green bands from the two document shadings", () => {
+    const parsed = parsePdf(buildReportPdf(input()));
+    expect(count(parsed.text, "/ShadingType 2")).toBe(2);
+    expect(parsed.text).toContain("/Shading << /Sh0 6 0 R /Sh1 7 0 R >>");
+    expect(parsed.text).toContain("/Sh0 sh");
+    expect(parsed.text).toContain("/Sh1 sh");
   });
 });
 

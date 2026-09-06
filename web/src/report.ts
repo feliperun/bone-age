@@ -5,12 +5,16 @@
 //
 // The file is written by hand: base-14 Helvetica with /WinAnsiEncoding for the
 // text, /DCTDecode for the radiograph (the JPEG bytes are copied verbatim, not
-// re-encoded), an uncompressed content stream per page and a classic cross
+// re-encoded), axial shadings for the green bands, /Link annotations over the
+// site address, an uncompressed content stream per page and a classic cross
 // reference table whose offsets are measured on the emitted bytes.
 //
 // NOT ONE user-visible word lives here. Everything the reader sees arrives in
 // `labels`; numbers and dates are formatted with `Intl` from `locale` and
-// substituted into the `{placeholder}` templates the labels carry.
+// substituted into the `{placeholder}` templates the labels carry. The one
+// drawn mark, the warning sign in the disclaimer, is geometry, not a glyph.
+
+import { encodeQr, type QrCode } from "./qr";
 
 /* ------------------------------------------------------------------ types */
 
@@ -128,6 +132,19 @@ export interface ReportLabels {
   disclaimerText: string;
   /** Privacy line printed in the page footer. */
   privacyNote: string;
+
+  /** Site address as printed on every page, e.g. "bone-age.app". */
+  siteUrl: string;
+  /** Absolute address behind the printed one and inside the QR code. */
+  siteLink: string;
+  /** Small tracked line opening the closing invitation. */
+  promoEyebrow: string;
+  /** Heading of the closing invitation. */
+  promoHeading: string;
+  /** What the reader gets by opening the site, in a line or two. */
+  promoText: string;
+  /** Caption printed under the QR code. */
+  promoQrCaption: string;
   /** Page footer counter. Template: {page}, {total}. */
   pageNumberTemplate: string;
 
@@ -307,28 +324,51 @@ const HELVETICA_BOLD: readonly number[] = [
   611, 611, 584, 611, 611, 611, 611, 611, 556, 611, 556,
 ];
 
-/** Advance width, in points, of an already WinAnsi-encoded byte string. */
-function widthOfEncoded(bytes: string, bold: boolean, size: number): number {
+/**
+ * Advance width, in points, of an already WinAnsi-encoded byte string.
+ * `tracking` is the extra advance the text operator adds after every glyph,
+ * counted between the glyphs only, the way the drawn ink measures.
+ */
+function widthOfEncoded(
+  bytes: string,
+  bold: boolean,
+  size: number,
+  tracking = 0,
+): number {
   const table = bold ? HELVETICA_BOLD : HELVETICA;
   let units = 0;
   for (let i = 0; i < bytes.length; i++) {
     const code = bytes.charCodeAt(i);
     units += code >= 32 && code <= 255 ? table[code - 32] : 0;
   }
-  return (units * size) / 1000;
+  return (units * size) / 1000 + tracking * Math.max(bytes.length - 1, 0);
 }
 
 /** Advance width, in points, of `text` set in Helvetica at `size`. */
-export function measureText(text: string, bold: boolean, size: number): number {
-  return widthOfEncoded(encodeWinAnsi(text), bold, size);
+export function measureText(
+  text: string,
+  bold: boolean,
+  size: number,
+  tracking = 0,
+): number {
+  return widthOfEncoded(encodeWinAnsi(text), bold, size, tracking);
 }
 
-function breakWord(word: string, bold: boolean, size: number, max: number) {
+function breakWord(
+  word: string,
+  bold: boolean,
+  size: number,
+  max: number,
+  tracking: number,
+) {
   const parts: string[] = [];
   let current = "";
   for (let i = 0; i < word.length; i++) {
     const ch = word.charAt(i);
-    if (current !== "" && widthOfEncoded(current + ch, bold, size) > max) {
+    if (
+      current !== "" &&
+      widthOfEncoded(current + ch, bold, size, tracking) > max
+    ) {
       parts.push(current);
       current = ch;
     } else {
@@ -344,6 +384,7 @@ function wrapEncoded(
   bold: boolean,
   size: number,
   max: number,
+  tracking: number,
 ): string[] {
   const words = bytes.split(" ").filter((word) => word.length > 0);
   if (words.length === 0) return [""];
@@ -353,15 +394,17 @@ function wrapEncoded(
   while (index < words.length) {
     const word = words[index];
     if (current === "") {
-      if (widthOfEncoded(word, bold, size) <= max) {
+      if (widthOfEncoded(word, bold, size, tracking) <= max) {
         current = word;
       } else {
-        const parts = breakWord(word, bold, size, max);
+        const parts = breakWord(word, bold, size, max, tracking);
         for (let i = 0; i < parts.length - 1; i++) lines.push(parts[i]);
         current = parts[parts.length - 1];
       }
       index++;
-    } else if (widthOfEncoded(`${current} ${word}`, bold, size) <= max) {
+    } else if (
+      widthOfEncoded(`${current} ${word}`, bold, size, tracking) <= max
+    ) {
       current = `${current} ${word}`;
       index++;
     } else {
@@ -383,6 +426,7 @@ export function wrapText(
   bold: boolean,
   size: number,
   max: number,
+  tracking = 0,
 ): string[] {
   const lines: string[] = [];
   for (const paragraph of String(text ?? "").split(/\r\n|\r|\n/)) {
@@ -391,7 +435,13 @@ export function wrapText(
       lines.push("");
       continue;
     }
-    for (const line of wrapEncoded(encoded, bold, size, Math.max(max, 1))) {
+    for (const line of wrapEncoded(
+      encoded,
+      bold,
+      size,
+      Math.max(max, 1),
+      tracking,
+    )) {
       lines.push(line);
     }
   }
@@ -462,44 +512,69 @@ function formatIsoDateTime(iso: string, locale: string): string {
 
 const PAGE_WIDTH = 595.276;
 const PAGE_HEIGHT = 841.89;
-const MARGIN_X = 56;
-const MARGIN_TOP = 56;
-const MARGIN_BOTTOM = 54;
+const MARGIN_X = 48;
 const COLUMN = PAGE_WIDTH - MARGIN_X * 2;
 const RIGHT_EDGE = MARGIN_X + COLUMN;
-const HEADER_BASELINE = PAGE_HEIGHT - MARGIN_TOP;
-const HEADER_RULE = HEADER_BASELINE - 11;
-const CONTENT_TOP = HEADER_RULE - 28;
-const FOOTER_RULE = MARGIN_BOTTOM + 24;
+// The masthead: tall on the cover, slim on every page after it.
+const COVER_BAND = 132;
+const BAND = 42;
+const FOOTER_RULE = 62;
 const FOOTER_BASELINE = FOOTER_RULE - 12;
-const CONTENT_BOTTOM = FOOTER_RULE + 16;
+const CONTENT_BOTTOM = FOOTER_RULE + 22;
 const ASCENT = 0.78;
+// A circular arc of 90 degrees as a cubic Bézier.
+const KAPPA = 0.5523;
 
 type Rgb = readonly [number, number, number];
 
-// Straight out of tokens.css.
-const INK: Rgb = [0.153, 0.212, 0.173]; // --ink   #27362c
-const GREEN: Rgb = [0.157, 0.333, 0.278]; // --green #285547
-const MUTED: Rgb = [0.467, 0.506, 0.443]; // --muted #778171
-const RULE: Rgb = [0.875, 0.894, 0.851]; // --line  #dfe4d9
-const CANVAS: Rgb = [0.075, 0.11, 0.098]; // canvas ground #131c19
+// The page palette, an extension of tokens.css into the darker greens the
+// printed page can afford.
+const INK: Rgb = [0.153, 0.212, 0.173]; // --ink    #27362c
+const GREEN: Rgb = [0.157, 0.333, 0.278]; // --green  #285547
+const DEEP: Rgb = [0.063, 0.184, 0.145]; // masthead #102f25
+const MID: Rgb = [0.184, 0.404, 0.333]; // masthead #2f6755
+const MINT: Rgb = [0.635, 0.784, 0.722]; // on green #a2c8b8
+const PALE: Rgb = [0.804, 0.878, 0.843]; // on green #cde0d7
+const MUTED: Rgb = [0.467, 0.506, 0.443]; // --muted  #778171
+const RULE: Rgb = [0.875, 0.894, 0.851]; // --line   #dfe4d9
+const SOFT: Rgb = [0.945, 0.957, 0.933]; // card fill #f1f4ee
+const WHITE: Rgb = [1, 1, 1];
+const CANVAS: Rgb = [0.075, 0.11, 0.098]; // plate     #131c19
 const WARN_FILL: Rgb = [0.957, 0.941, 0.89]; // badge bg     #f4f0e3
 const WARN_LINE: Rgb = [0.863, 0.843, 0.776]; // badge border #dcd7c6
 const WARN_INK: Rgb = [0.514, 0.447, 0.29]; // badge ink    #83724a
+
+/** Advance width of an encoded string in a given style. */
+function styleWidth(bytes: string, style: Style): number {
+  return widthOfEncoded(bytes, style.bold, style.size, style.tracking ?? 0);
+}
 
 interface Style {
   bold: boolean;
   size: number;
   color: Rgb;
   leading: number;
+  /** Extra advance after every glyph, in points. */
+  tracking?: number;
+}
+
+/** A clickable rectangle, resolved into a /Link annotation at the end. */
+interface Link {
+  page: number;
+  rect: readonly [number, number, number, number];
+  uri: string;
 }
 
 interface Doc {
   pages: string[][];
   ops: string[];
   y: number;
-  productName: string;
-  badge: string;
+  links: Link[];
+  labels: ReportLabels;
+  /** Pre-formatted "generated on" line, empty when there is none. */
+  generated: string;
+  /** The site QR, encoded once and painted on the closing card. */
+  qr?: QrCode;
 }
 
 /** PDF real number: fixed notation, at most three decimals, no "-0". */
@@ -525,18 +600,20 @@ function escapeString(bytes: string): string {
   return out;
 }
 
+/* ------------------------------------------------------------------- text */
+
 function textOp(
   bytes: string,
   x: number,
   baseline: number,
-  bold: boolean,
-  size: number,
-  rgb: Rgb,
+  style: Style,
 ): string {
+  const tracking = style.tracking ?? 0;
   return [
     "BT",
-    `/${bold ? "F2" : "F1"} ${num(size)} Tf`,
-    `${color(rgb)} rg`,
+    `/${style.bold ? "F2" : "F1"} ${num(style.size)} Tf`,
+    `${num(tracking)} Tc`,
+    `${color(style.color)} rg`,
     `1 0 0 1 ${num(x)} ${num(baseline)} Tm`,
     `(${escapeString(bytes)}) Tj`,
     "ET",
@@ -550,7 +627,8 @@ function drawEncoded(
   baseline: number,
   style: Style,
 ) {
-  doc.ops.push(textOp(bytes, x, baseline, style.bold, style.size, style.color));
+  if (bytes === "") return;
+  doc.ops.push(textOp(bytes, x, baseline, style));
 }
 
 function drawLeft(
@@ -571,9 +649,21 @@ function drawRight(
   style: Style,
 ) {
   const bytes = encodeWinAnsi(text);
-  const width = widthOfEncoded(bytes, style.bold, style.size);
-  drawEncoded(doc, bytes, right - width, baseline, style);
+  drawEncoded(doc, bytes, right - styleWidth(bytes, style), baseline, style);
 }
+
+function drawCentre(
+  doc: Doc,
+  text: string,
+  centre: number,
+  baseline: number,
+  style: Style,
+) {
+  const bytes = encodeWinAnsi(text);
+  drawEncoded(doc, bytes, centre - styleWidth(bytes, style) / 2, baseline, style);
+}
+
+/* ----------------------------------------------------------------- shapes */
 
 function hairline(doc: Doc, x: number, y: number, width: number, rgb = RULE) {
   doc.ops.push(
@@ -581,59 +671,105 @@ function hairline(doc: Doc, x: number, y: number, width: number, rgb = RULE) {
   );
 }
 
-function vertical(doc: Doc, x: number, top: number, height: number) {
+function vertical(doc: Doc, x: number, top: number, height: number, rgb = RULE) {
   doc.ops.push(
-    `${color(RULE)} RG 0.6 w ${num(x)} ${num(top)} m ${num(x)} ${num(top - height)} l S`,
+    `${color(rgb)} RG 0.6 w ${num(x)} ${num(top)} m ${num(x)} ${num(top - height)} l S`,
   );
 }
 
-function fillRect(
+/** Path of a rectangle whose corners are rounded by `radius`. */
+function roundedPath(
+  x: number,
+  bottom: number,
+  width: number,
+  height: number,
+  radius: number,
+): string {
+  const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+  if (r === 0) {
+    return `${num(x)} ${num(bottom)} ${num(width)} ${num(height)} re`;
+  }
+  const k = r * KAPPA;
+  const right = x + width;
+  const top = bottom + height;
+  return [
+    `${num(x + r)} ${num(bottom)} m`,
+    `${num(right - r)} ${num(bottom)} l`,
+    `${num(right - r + k)} ${num(bottom)} ${num(right)} ${num(bottom + r - k)} ${num(right)} ${num(bottom + r)} c`,
+    `${num(right)} ${num(top - r)} l`,
+    `${num(right)} ${num(top - r + k)} ${num(right - r + k)} ${num(top)} ${num(right - r)} ${num(top)} c`,
+    `${num(x + r)} ${num(top)} l`,
+    `${num(x + r - k)} ${num(top)} ${num(x)} ${num(top - r + k)} ${num(x)} ${num(top - r)} c`,
+    `${num(x)} ${num(bottom + r)} l`,
+    `${num(x)} ${num(bottom + r - k)} ${num(x + r - k)} ${num(bottom)} ${num(x + r)} ${num(bottom)} c`,
+    "h",
+  ].join(" ");
+}
+
+function circlePath(cx: number, cy: number, r: number): string {
+  const k = r * KAPPA;
+  return [
+    `${num(cx + r)} ${num(cy)} m`,
+    `${num(cx + r)} ${num(cy + k)} ${num(cx + k)} ${num(cy + r)} ${num(cx)} ${num(cy + r)} c`,
+    `${num(cx - k)} ${num(cy + r)} ${num(cx - r)} ${num(cy + k)} ${num(cx - r)} ${num(cy)} c`,
+    `${num(cx - r)} ${num(cy - k)} ${num(cx - k)} ${num(cy - r)} ${num(cx)} ${num(cy - r)} c`,
+    `${num(cx + k)} ${num(cy - r)} ${num(cx + r)} ${num(cy - k)} ${num(cx + r)} ${num(cy)} c`,
+    "h",
+  ].join(" ");
+}
+
+function fillPath(doc: Doc, path: string, rgb: Rgb) {
+  doc.ops.push(`${color(rgb)} rg ${path} f`);
+}
+
+function strokePath(doc: Doc, path: string, rgb: Rgb, width = 0.6) {
+  doc.ops.push(`${color(rgb)} RG ${num(width)} w ${path} S`);
+}
+
+function card(
   doc: Doc,
   x: number,
   bottom: number,
   width: number,
   height: number,
-  rgb: Rgb,
+  radius: number,
+  fill: Rgb,
+  border?: Rgb,
 ) {
-  doc.ops.push(
-    `${color(rgb)} rg ${num(x)} ${num(bottom)} ${num(width)} ${num(height)} re f`,
-  );
+  const path = roundedPath(x, bottom, width, height, radius);
+  fillPath(doc, path, fill);
+  if (border) strokePath(doc, path, border);
 }
 
-function strokeRect(
+/** Paints one of the document shadings through a path used as a clip. */
+function gradient(
   doc: Doc,
+  name: string,
+  path: string,
   x: number,
   bottom: number,
   width: number,
   height: number,
-  rgb: Rgb,
 ) {
   doc.ops.push(
-    `${color(rgb)} RG 0.6 w ${num(x)} ${num(bottom)} ${num(width)} ${num(height)} re S`,
+    `q ${path} W n ${num(width)} 0 0 ${num(height)} ${num(x)} ${num(bottom)} cm /${name} sh Q`,
   );
 }
 
-function beginPage(doc: Doc) {
-  doc.ops = [];
-  doc.pages.push(doc.ops);
-  drawLeft(doc, doc.productName, MARGIN_X, HEADER_BASELINE, {
-    bold: true,
-    size: 12,
-    color: GREEN,
-    leading: 14,
+function link(
+  doc: Doc,
+  uri: string,
+  x: number,
+  bottom: number,
+  width: number,
+  height: number,
+) {
+  if (!uri) return;
+  doc.links.push({
+    page: doc.pages.length - 1,
+    rect: [x, bottom, x + width, bottom + height],
+    uri,
   });
-  drawRight(doc, doc.badge, RIGHT_EDGE, HEADER_BASELINE + 1, {
-    bold: false,
-    size: 7.5,
-    color: WARN_INK,
-    leading: 10,
-  });
-  hairline(doc, MARGIN_X, HEADER_RULE, COLUMN);
-  doc.y = CONTENT_TOP;
-}
-
-function ensure(doc: Doc, height: number) {
-  if (doc.y - height < CONTENT_BOTTOM) beginPage(doc);
 }
 
 /* --------------------------------------------------------- text stacking */
@@ -666,6 +802,7 @@ function layoutStack(blocks: Block[], width: number): Stack {
       block.style.bold,
       block.style.size,
       width,
+      block.style.tracking ?? 0,
     )) {
       lines.push({ bytes, style: block.style, top: height });
       height += block.style.leading;
@@ -676,7 +813,6 @@ function layoutStack(blocks: Block[], width: number): Stack {
 
 function paintStack(doc: Doc, stack: Stack, x: number, top: number) {
   for (const line of stack.lines) {
-    if (line.bytes === "") continue;
     drawEncoded(
       doc,
       line.bytes,
@@ -698,65 +834,389 @@ function flowText(
 ) {
   if (!text) return;
   doc.y -= gapBefore;
-  for (const bytes of wrapText(text, style.bold, style.size, width)) {
+  for (const bytes of wrapText(
+    text,
+    style.bold,
+    style.size,
+    width,
+    style.tracking ?? 0,
+  )) {
     ensure(doc, style.leading);
-    if (bytes !== "") {
-      drawEncoded(doc, bytes, x, doc.y - style.size * ASCENT, style);
-    }
+    drawEncoded(doc, bytes, x, doc.y - style.size * ASCENT, style);
     doc.y -= style.leading;
   }
 }
 
-function sectionHeading(doc: Doc, text: string) {
-  ensure(doc, 44);
-  flowText(
+/* ------------------------------------------------------------- furniture */
+
+/** Product name and site, on the green band that opens every page. */
+function masthead(doc: Doc) {
+  const cover = doc.pages.length === 1;
+  const height = cover ? COVER_BAND : BAND;
+  const bottom = PAGE_HEIGHT - height;
+  const labels = doc.labels;
+  gradient(
     doc,
-    text,
-    { bold: true, size: 9.5, color: INK, leading: 13 },
-    MARGIN_X,
-    COLUMN,
+    "Sh0",
+    `0 ${num(bottom)} ${num(PAGE_WIDTH)} ${num(height)} re`,
+    0,
+    bottom,
+    PAGE_WIDTH,
+    height,
   );
-  doc.y -= 4;
-  hairline(doc, MARGIN_X, doc.y, COLUMN);
-  doc.y -= 9;
+
+  const eyebrow = PAGE_HEIGHT - (cover ? 34 : 26);
+  drawLeft(doc, labels.productName, MARGIN_X, eyebrow, {
+    bold: true,
+    size: cover ? 12.5 : 10.5,
+    color: WHITE,
+    leading: 14,
+    tracking: 0.3,
+  });
+  const site: Style = {
+    bold: false,
+    size: cover ? 9 : 8,
+    color: MINT,
+    leading: 12,
+  };
+  const siteWidth = styleWidth(encodeWinAnsi(labels.siteUrl), site);
+  drawRight(doc, labels.siteUrl, RIGHT_EDGE, eyebrow, site);
+  link(doc, labels.siteLink, RIGHT_EDGE - siteWidth, eyebrow - 4, siteWidth, 15);
+
+  if (!cover) {
+    doc.y = bottom - 26;
+    return;
+  }
+
+  hairline(doc, MARGIN_X, PAGE_HEIGHT - 48, COLUMN, [0.239, 0.443, 0.373]);
+
+  // The badge sits on its own pill, right-aligned with the title.
+  const badge: Style = {
+    bold: true,
+    size: 6.8,
+    color: MINT,
+    leading: 9,
+    tracking: 0.9,
+  };
+  const badgeBytes = encodeWinAnsi(labels.experimentalBadge);
+  const badgeWidth = styleWidth(badgeBytes, badge);
+  const pillWidth = badgeWidth + 18;
+  strokePath(
+    doc,
+    roundedPath(RIGHT_EDGE - pillWidth, PAGE_HEIGHT - 82, pillWidth, 16, 8),
+    [0.294, 0.51, 0.435],
+    0.8,
+  );
+  drawEncoded(doc, badgeBytes, RIGHT_EDGE - pillWidth + 9, PAGE_HEIGHT - 77.5, badge);
+  if (doc.generated) {
+    drawRight(doc, doc.generated, RIGHT_EDGE, PAGE_HEIGHT - 98, {
+      bold: false,
+      size: 7.5,
+      color: PALE,
+      leading: 10,
+    });
+  }
+
+  const titleWidth = COLUMN - pillWidth - 24;
+  const title = layoutStack(
+    [
+      {
+        text: labels.documentTitle,
+        style: { bold: true, size: 20, color: WHITE, leading: 23 },
+        gapBefore: 0,
+      },
+      {
+        text: labels.documentSubtitle,
+        style: { bold: false, size: 8.6, color: MINT, leading: 12 },
+        gapBefore: 6,
+      },
+    ],
+    titleWidth,
+  );
+  paintStack(doc, title, MARGIN_X, PAGE_HEIGHT - 62);
+  doc.y = bottom - 28;
 }
 
-interface Row {
+function beginPage(doc: Doc) {
+  doc.ops = [];
+  doc.pages.push(doc.ops);
+  masthead(doc);
+}
+
+function ensure(doc: Doc, height: number) {
+  if (doc.y - height < CONTENT_BOTTOM) beginPage(doc);
+}
+
+/** Small tracked heading over a hairline the brand colour picks up. */
+function sectionHeading(doc: Doc, text: string) {
+  ensure(doc, 46);
+  drawLeft(doc, text, MARGIN_X, doc.y - 9 * ASCENT, {
+    bold: true,
+    size: 9,
+    color: INK,
+    leading: 12,
+    tracking: 0.5,
+  });
+  doc.y -= 15;
+  hairline(doc, MARGIN_X, doc.y, COLUMN);
+  doc.ops.push(
+    `${color(GREEN)} RG 1.4 w ${num(MARGIN_X)} ${num(doc.y)} m ${num(MARGIN_X + 34)} ${num(doc.y)} l S`,
+  );
+  doc.y -= 14;
+}
+
+/* ------------------------------------------------------------ small parts */
+
+interface Field {
   label: string;
   value: string;
 }
 
-const ROW_LABEL_WIDTH = 132;
-const ROW_GAP = 14;
+const CHIP_LABEL: Style = {
+  bold: false,
+  size: 6.8,
+  color: MUTED,
+  leading: 9.5,
+  tracking: 0.4,
+};
+const CHIP_VALUE: Style = { bold: false, size: 8.6, color: INK, leading: 11 };
 
-/** A quiet two-column table: hairline, small muted key, value. */
-function drawRows(doc: Doc, rows: Row[]) {
-  const valueWidth = COLUMN - ROW_LABEL_WIDTH - ROW_GAP;
-  const labelStyle: Style = {
-    bold: false,
-    size: 8,
-    color: MUTED,
-    leading: 12,
-  };
-  const valueStyle: Style = { bold: false, size: 9, color: INK, leading: 12 };
-  for (const row of rows) {
-    const labelLines = layoutStack(
-      [{ text: row.label, style: labelStyle, gapBefore: 0 }],
-      ROW_LABEL_WIDTH,
-    );
-    const valueLines = layoutStack(
-      [{ text: row.value, style: valueStyle, gapBefore: 0 }],
-      valueWidth,
-    );
-    const inner = Math.max(labelLines.height, valueLines.height, 12);
-    const total = inner + 11;
-    ensure(doc, total);
-    hairline(doc, MARGIN_X, doc.y, COLUMN);
-    const top = doc.y - 6;
-    paintStack(doc, labelLines, MARGIN_X, top - 0.5);
-    paintStack(doc, valueLines, MARGIN_X + ROW_LABEL_WIDTH + ROW_GAP, top);
-    doc.y -= total;
+/**
+ * A row of soft chips, each a caption over its value. `spans` says how many
+ * of the row's `columns` each chip covers, so consecutive rows line up on the
+ * same grid however many chips they carry.
+ */
+function chipRow(
+  doc: Doc,
+  fields: Field[],
+  spans: number[],
+  columns: number,
+) {
+  const gap = 8;
+  const unit = (COLUMN - gap * (columns - 1)) / columns;
+  const widths = spans.map((span) => unit * span + gap * (span - 1));
+  const stacks = fields.map((field, i) =>
+    layoutStack(
+      [
+        { text: field.label, style: CHIP_LABEL, gapBefore: 0 },
+        { text: field.value, style: CHIP_VALUE, gapBefore: 3 },
+      ],
+      widths[i] - 22,
+    ),
+  );
+  const height =
+    stacks.reduce((tallest, stack) => Math.max(tallest, stack.height), 0) + 20;
+  ensure(doc, height);
+  let x = MARGIN_X;
+  for (let i = 0; i < fields.length; i++) {
+    card(doc, x, doc.y - height, widths[i], height, 6, SOFT);
+    paintStack(doc, stacks[i], x + 11, doc.y - 11);
+    x += widths[i] + gap;
   }
+  doc.y -= height;
+}
+
+/** Two columns of quiet key/value pairs under a shared hairline grid. */
+function fieldGrid(doc: Doc, fields: Field[], columns: number) {
+  const gap = 18;
+  const width = (COLUMN - gap * (columns - 1)) / columns;
+  const label: Style = { ...CHIP_LABEL, size: 7 };
+  const value: Style = { bold: false, size: 8.8, color: INK, leading: 11.5 };
+  for (let i = 0; i < fields.length; i += columns) {
+    const row = fields.slice(i, i + columns);
+    const stacks = row.map((field) =>
+      layoutStack(
+        [
+          { text: field.label, style: label, gapBefore: 0 },
+          { text: field.value, style: value, gapBefore: 2 },
+        ],
+        width,
+      ),
+    );
+    const height =
+      stacks.reduce((tallest, stack) => Math.max(tallest, stack.height), 0) + 15;
+    ensure(doc, height);
+    hairline(doc, MARGIN_X, doc.y, COLUMN);
+    for (let column = 0; column < stacks.length; column++) {
+      paintStack(doc, stacks[column], MARGIN_X + column * (width + gap), doc.y - 9);
+    }
+    doc.y -= height;
+  }
+}
+
+/* ---------------------------------------------------------------- charts */
+
+interface Marker {
+  value: number;
+  label: string;
+  /** Above the track for the estimate, below it for the reference. */
+  above: boolean;
+  color: Rgb;
+}
+
+/** Maps a value to a position, with a domain padded around the extremes. */
+function scaleOf(values: number[], x: number, width: number) {
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const pad = Math.max((high - low) * 0.75, 6);
+  const min = Math.max(0, low - pad);
+  const max = high + pad;
+  const span = max - min || 1;
+  return {
+    min,
+    max,
+    at: (value: number) =>
+      x + ((Math.min(Math.max(value, min), max) - min) / span) * width,
+  };
+}
+
+/**
+ * The comparison track: one rounded rail, the stretch between the two ages
+ * picked out, and a labelled marker for each of them.
+ */
+function comparisonScale(
+  doc: Doc,
+  x: number,
+  top: number,
+  width: number,
+  markers: Marker[],
+  endLabel: (value: number) => string,
+) {
+  const scale = scaleOf(
+    markers.map((marker) => marker.value),
+    x,
+    width,
+  );
+  const rail = top - 16;
+  fillPath(doc, roundedPath(x, rail - 3.5, width, 7, 3.5), [0.898, 0.918, 0.878]);
+  if (markers.length > 1) {
+    // The stretch between the two ages, which is what the reader is after.
+    const from = Math.min(...markers.map((marker) => scale.at(marker.value)));
+    const to = Math.max(...markers.map((marker) => scale.at(marker.value)));
+    fillPath(
+      doc,
+      roundedPath(from, rail - 3.5, to - from, 7, 3.5),
+      [0.706, 0.82, 0.769],
+    );
+  }
+
+  const caption: Style = { bold: false, size: 6.6, color: MUTED, leading: 9 };
+  for (const marker of markers) {
+    const at = scale.at(marker.value);
+    fillPath(doc, circlePath(at, rail, marker.above ? 5.5 : 4), marker.color);
+    if (marker.above) fillPath(doc, circlePath(at, rail, 2), WHITE);
+    const bytes = encodeWinAnsi(marker.label);
+    const style: Style = marker.above
+      ? { ...caption, bold: true, color: GREEN }
+      : caption;
+    const half = styleWidth(bytes, style) / 2;
+    const centre = Math.min(Math.max(at, x + half), x + width - half);
+    drawEncoded(
+      doc,
+      bytes,
+      centre - half,
+      marker.above ? rail + 11 : rail - 15,
+      style,
+    );
+  }
+
+  const ends: Style = { bold: false, size: 6.2, color: MUTED, leading: 8 };
+  drawLeft(doc, endLabel(scale.min), x, rail - 15, ends);
+  drawRight(doc, endLabel(scale.max), x + width, rail - 15, ends);
+  return 42;
+}
+
+/**
+ * One lane per network: the name, a dot on the shared scale, the exact value.
+ * Reads as agreement at a glance, which fourteen identical rows never did.
+ */
+function foldChart(
+  doc: Doc,
+  names: string[],
+  values: number[],
+  mean: number,
+  meanLabel: string,
+  meanValue: string,
+  format: (value: number) => string,
+) {
+  const nameWidth = 52;
+  const valueWidth = 78;
+  const trackX = MARGIN_X + nameWidth;
+  const trackWidth = COLUMN - nameWidth - valueWidth;
+  const lane = 15;
+  const height = lane * values.length + 38;
+  ensure(doc, height);
+  const scale = scaleOf([...values, mean], trackX, trackWidth);
+
+  const top = doc.y - 24;
+  const meanAt = scale.at(mean);
+  doc.ops.push(
+    `${color(GREEN)} RG 0.8 w [1.6 1.6] 0 d ${num(meanAt)} ${num(top + 6)} m ` +
+      `${num(meanAt)} ${num(top - lane * values.length + 4)} l S [] 0 d`,
+  );
+  drawCentre(doc, meanValue, meanAt, top + 9, {
+    bold: true,
+    size: 7.6,
+    color: GREEN,
+    leading: 10,
+  });
+  drawCentre(doc, meanLabel, meanAt, top + 19, {
+    bold: false,
+    size: 6.4,
+    color: MUTED,
+    leading: 9,
+    tracking: 0.3,
+  });
+
+  for (let i = 0; i < values.length; i++) {
+    const y = top - lane * i - 6;
+    hairline(doc, trackX, y, trackWidth, [0.929, 0.941, 0.914]);
+    drawLeft(doc, names[i], MARGIN_X, y - 2.4, {
+      bold: false,
+      size: 7.4,
+      color: MUTED,
+      leading: 10,
+    });
+    fillPath(doc, circlePath(scale.at(values[i]), y, 3.4), GREEN);
+    drawRight(doc, format(values[i]), RIGHT_EDGE, y - 2.6, {
+      bold: false,
+      size: 7.8,
+      color: INK,
+      leading: 10,
+    });
+  }
+  doc.y -= height;
+}
+
+/* -------------------------------------------------------------- QR blocks */
+
+/** Paints the matrix as one path, merging each row's runs of dark modules. */
+function drawQr(
+  doc: Doc,
+  code: QrCode,
+  x: number,
+  bottom: number,
+  size: number,
+  rgb: Rgb,
+) {
+  const unit = size / code.size;
+  const parts: string[] = [];
+  for (let row = 0; row < code.size; row++) {
+    let start = -1;
+    for (let column = 0; column <= code.size; column++) {
+      const dark = column < code.size && code.modules[row][column];
+      if (dark && start < 0) start = column;
+      if (!dark && start >= 0) {
+        // A hair of bleed keeps viewers from drawing seams between the runs.
+        parts.push(
+          `${num(x + start * unit)} ${num(bottom + size - (row + 1) * unit)} ` +
+            `${num((column - start) * unit + 0.04)} ${num(unit + 0.04)} re`,
+        );
+        start = -1;
+      }
+    }
+  }
+  doc.ops.push(`${color(rgb)} rg ${parts.join(" ")} f`);
 }
 
 /* ---------------------------------------------------------- JPEG sniffing */
@@ -864,9 +1324,21 @@ const PAGES = 2;
 const FONT_REGULAR = 3;
 const FONT_BOLD = 4;
 const INFO = 5;
-const IMAGE = 6;
+const SHADE_BAND = 6;
+const SHADE_CARD = 7;
+const IMAGE = 8;
 
-/** Builds the one- or two-page PDF report and returns its bytes. */
+function shading(from: Rgb, to: Rgb, coords: string): string {
+  return (
+    "<< /ShadingType 2 /ColorSpace /DeviceRGB" +
+    ` /Coords [${coords}]` +
+    " /Function << /FunctionType 2 /Domain [0 1]" +
+    ` /C0 [${color(from)}] /C1 [${color(to)}] /N 1 >>` +
+    " /Extend [true true] >>"
+  );
+}
+
+/** Builds the two-page PDF report and returns its bytes. */
 // Uint8Array<ArrayBuffer>, not the ArrayBufferLike default: the caller hands
 // these bytes straight to Blob, which does not accept a SharedArrayBuffer view.
 export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
@@ -888,47 +1360,32 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
     imageWidth > 0 &&
     imageHeight > 0;
 
+  let qr: QrCode | undefined;
+  try {
+    // The closing card is the reason the QR exists; if the address cannot be
+    // encoded the card still prints, with the written link alone.
+    if (labels.siteLink) qr = encodeQr(labels.siteLink);
+  } catch {
+    qr = undefined;
+  }
+
   const doc: Doc = {
     pages: [],
     ops: [],
-    y: CONTENT_TOP,
-    productName: labels.productName,
-    badge: labels.experimentalBadge,
+    y: 0,
+    links: [],
+    labels,
+    generated:
+      labels.generatedOnTemplate && input.generatedAt
+        ? fill(labels.generatedOnTemplate, {
+            datetime: formatIsoDateTime(input.generatedAt, locale),
+          })
+        : "",
+    qr,
   };
   beginPage(doc);
 
-  /* -- title ------------------------------------------------------------ */
-
-  const titleTop = doc.y;
-  flowText(
-    doc,
-    labels.documentTitle,
-    { bold: true, size: 19, color: INK, leading: 23 },
-    MARGIN_X,
-    COLUMN - 120,
-  );
-  if (labels.generatedOnTemplate && input.generatedAt) {
-    // Sits on the title baseline, so it costs no vertical space.
-    drawRight(
-      doc,
-      fill(labels.generatedOnTemplate, {
-        datetime: formatIsoDateTime(input.generatedAt, locale),
-      }),
-      RIGHT_EDGE,
-      titleTop - 19 * ASCENT,
-      { bold: false, size: 8, color: MUTED, leading: 11 },
-    );
-  }
-  flowText(
-    doc,
-    labels.documentSubtitle,
-    { bold: false, size: 9.5, color: MUTED, leading: 13.5 },
-    MARGIN_X,
-    COLUMN * 0.88,
-    5,
-  );
-
-  /* -- headline result -------------------------------------------------- */
+  /* -- headline card ---------------------------------------------------- */
 
   const chronological =
     typeof input.chronologicalMonths === "number" &&
@@ -938,125 +1395,153 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
   const difference =
     chronological === undefined ? undefined : input.months - chronological;
 
-  const eyebrow: Style = { bold: false, size: 8, color: MUTED, leading: 11 };
-  const caption: Style = { bold: false, size: 7.5, color: MUTED, leading: 10.5 };
+  const eyebrow: Style = {
+    bold: false,
+    size: 6.9,
+    color: MUTED,
+    leading: 9.6,
+    tracking: 0.7,
+  };
+  const caption: Style = { bold: false, size: 6.9, color: MUTED, leading: 9.6 };
 
-  const bandColumns = [
+  const headline = layoutStack(
+    [
+      { text: labels.estimatedBoneAgeLabel, style: eyebrow, gapBefore: 0 },
+      {
+        text: monthsValue(input.months, 1),
+        style: { bold: true, size: 26, color: GREEN, leading: 30 },
+        gapBefore: 6,
+      },
+      {
+        text: labels.estimatedAgeText,
+        style: { bold: false, size: 10.5, color: INK, leading: 14 },
+        gapBefore: 2,
+      },
+      { text: labels.estimatedBoneAgeCaption, style: caption, gapBefore: 5 },
+    ],
+    180,
+  );
+  const chronoStack = layoutStack(
+    [
+      { text: labels.chronologicalAgeLabel, style: eyebrow, gapBefore: 0 },
+      {
+        text:
+          chronological === undefined
+            ? labels.notInformedValue
+            : monthsValue(chronological, 1),
+        style: { bold: true, size: 14, color: INK, leading: 18 },
+        gapBefore: 6,
+      },
+      {
+        text:
+          chronological === undefined ? "" : (labels.chronologicalAgeText ?? ""),
+        style: caption,
+        gapBefore: 3,
+      },
+    ],
+    108,
+  );
+  const differenceStack = layoutStack(
+    [
+      { text: labels.differenceLabel, style: eyebrow, gapBefore: 0 },
+      {
+        text:
+          difference === undefined
+            ? labels.notComputedValue
+            : fill(labels.differenceValueTemplate, {
+                sign: difference < 0 ? "-" : "+",
+                months: decimal(Math.abs(difference), 1),
+              }),
+        style: { bold: true, size: 14, color: INK, leading: 18 },
+        gapBefore: 6,
+      },
+      { text: labels.differenceCaption, style: caption, gapBefore: 3 },
+    ],
+    107,
+  );
+
+  const bodyHeight = Math.max(
+    headline.height,
+    chronoStack.height,
+    differenceStack.height,
+  );
+  const scaleHeight = 42;
+  const cardHeight = 18 + bodyHeight + 14 + scaleHeight + 16;
+  ensure(doc, cardHeight);
+  const cardBottom = doc.y - cardHeight;
+  card(doc, MARGIN_X, cardBottom, COLUMN, cardHeight, 12, WHITE, RULE);
+  const bodyTop = doc.y - 18;
+  paintStack(doc, headline, MARGIN_X + 20, bodyTop);
+  vertical(doc, MARGIN_X + 216, bodyTop + 4, bodyHeight);
+  paintStack(doc, chronoStack, MARGIN_X + 232, bodyTop);
+  vertical(doc, MARGIN_X + 356, bodyTop + 4, bodyHeight);
+  paintStack(doc, differenceStack, MARGIN_X + 372, bodyTop);
+
+  const markers: Marker[] = [
     {
-      x: MARGIN_X,
-      width: 174,
-      divider: 0,
-      blocks: [
-        { text: labels.estimatedBoneAgeLabel, style: eyebrow, gapBefore: 0 },
-        {
-          text: monthsValue(input.months, 1),
-          style: { bold: true, size: 22, color: GREEN, leading: 26 },
-          gapBefore: 5,
-        },
-        {
-          text: labels.estimatedAgeText,
-          style: { bold: false, size: 10, color: INK, leading: 13 },
-          gapBefore: 2,
-        },
-        {
-          text: labels.estimatedBoneAgeCaption,
-          style: caption,
-          gapBefore: 4,
-        },
-      ],
-    },
-    {
-      x: MARGIN_X + 206,
-      width: 130,
-      divider: MARGIN_X + 190,
-      blocks: [
-        { text: labels.chronologicalAgeLabel, style: eyebrow, gapBefore: 0 },
-        {
-          text:
-            chronological === undefined
-              ? labels.notInformedValue
-              : monthsValue(chronological, 1),
-          style: { bold: true, size: 15, color: INK, leading: 19 },
-          gapBefore: 5,
-        },
-        {
-          text:
-            chronological === undefined
-              ? ""
-              : (labels.chronologicalAgeText ?? ""),
-          style: caption,
-          gapBefore: 3,
-        },
-      ],
-    },
-    {
-      x: MARGIN_X + 352,
-      width: 131,
-      divider: MARGIN_X + 336,
-      blocks: [
-        { text: labels.differenceLabel, style: eyebrow, gapBefore: 0 },
-        {
-          text:
-            difference === undefined
-              ? labels.notComputedValue
-              : fill(labels.differenceValueTemplate, {
-                  sign: difference < 0 ? "-" : "+",
-                  months: decimal(Math.abs(difference), 1),
-                }),
-          style: { bold: true, size: 15, color: INK, leading: 19 },
-          gapBefore: 5,
-        },
-        { text: labels.differenceCaption, style: caption, gapBefore: 3 },
-      ],
+      value: input.months,
+      label: labels.estimatedBoneAgeLabel,
+      above: true,
+      color: GREEN,
     },
   ];
-
-  const bandStacks = bandColumns.map((entry) =>
-    layoutStack(entry.blocks, entry.width),
-  );
-  const bandHeight = bandStacks.reduce(
-    (largest, stack) => Math.max(largest, stack.height),
-    0,
-  );
-  doc.y -= 16;
-  ensure(doc, bandHeight + 36);
-  hairline(doc, MARGIN_X, doc.y, COLUMN);
-  const bandTop = doc.y - 17;
-  for (let i = 0; i < bandColumns.length; i++) {
-    const entry = bandColumns[i];
-    if (entry.divider > 0) vertical(doc, entry.divider, bandTop + 3, bandHeight);
-    paintStack(doc, bandStacks[i], entry.x, bandTop);
+  if (chronological !== undefined) {
+    markers.push({
+      value: chronological,
+      label: labels.chronologicalAgeLabel,
+      above: false,
+      color: INK,
+    });
   }
-  doc.y = bandTop - bandHeight - 16;
-  hairline(doc, MARGIN_X, doc.y, COLUMN);
-  doc.y -= 20;
+  comparisonScale(
+    doc,
+    MARGIN_X + 20,
+    bodyTop - bodyHeight - 14,
+    COLUMN - 40,
+    markers,
+    (value) => monthsValue(value, 0),
+  );
+  doc.y = cardBottom - 24;
 
   /* -- exam data -------------------------------------------------------- */
 
   sectionHeading(doc, labels.examDataHeading);
-  drawRows(doc, [
-    { label: labels.sexLabel, value: labels.sexValue },
-    {
-      label: labels.dateOfBirthLabel,
-      value: input.dateOfBirth
-        ? formatIsoDate(input.dateOfBirth, locale)
-        : labels.notInformedValue,
-    },
-    {
-      label: labels.examinationDateLabel,
-      value: formatIsoDate(input.examinationDate, locale),
-    },
-    { label: labels.sourceFileLabel, value: input.fileName },
-    {
-      label: labels.analysedImageSizeLabel,
-      value: hasImage
-        ? fill(labels.imageSizeValueTemplate, {
-            width: formatInteger(imageWidth),
-            height: formatInteger(imageHeight),
-          })
-        : labels.notInformedValue,
-    },
-  ]);
+  chipRow(
+    doc,
+    [
+      { label: labels.sexLabel, value: labels.sexValue },
+      {
+        label: labels.dateOfBirthLabel,
+        value: input.dateOfBirth
+          ? formatIsoDate(input.dateOfBirth, locale)
+          : labels.notInformedValue,
+      },
+      {
+        label: labels.examinationDateLabel,
+        value: formatIsoDate(input.examinationDate, locale),
+      },
+    ],
+    [1, 1, 1],
+    3,
+  );
+  doc.y -= 8;
+  chipRow(
+    doc,
+    [
+      { label: labels.sourceFileLabel, value: input.fileName },
+      {
+        label: labels.analysedImageSizeLabel,
+        value: hasImage
+          ? fill(labels.imageSizeValueTemplate, {
+              width: formatInteger(imageWidth),
+              height: formatInteger(imageHeight),
+            })
+          : labels.notInformedValue,
+      },
+    ],
+    [2, 1],
+    3,
+  );
 
   /* -- radiograph ------------------------------------------------------- */
 
@@ -1065,87 +1550,101 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
       [{ text: labels.radiographCaption, style: caption, gapBefore: 0 }],
       COLUMN,
     );
-    const reserve = captionStack.height + 12;
-    doc.y -= 16;
-    // Keep the heading, the plate and its caption together on one page.
-    ensure(doc, 44 + reserve + 160);
+    const reserve = captionStack.height + 10;
+    doc.y -= 20;
+    ensure(doc, 46 + reserve + 150);
     sectionHeading(doc, labels.radiographHeading);
-    const room = Math.max(doc.y - CONTENT_BOTTOM - reserve, 80);
-    const maxBox = Math.min(340, room);
+    const room = Math.max(doc.y - CONTENT_BOTTOM - reserve, 90);
     const scale = Math.min(
-      (COLUMN - 20) / imageWidth,
-      (maxBox - 20) / imageHeight,
+      (COLUMN - 32) / imageWidth,
+      (Math.min(360, room) - 24) / imageHeight,
     );
     const drawWidth = Math.max(imageWidth * scale, 1);
     const drawHeight = Math.max(imageHeight * scale, 1);
-    const boxHeight = drawHeight + 20;
-    const boxBottom = doc.y - boxHeight;
-    fillRect(doc, MARGIN_X, boxBottom, COLUMN, boxHeight, CANVAS);
+    const plateHeight = drawHeight + 24;
+    const plateWidth = Math.min(drawWidth + 24, COLUMN);
+    const plateX = MARGIN_X + (COLUMN - plateWidth) / 2;
+    const plateBottom = doc.y - plateHeight;
+    card(doc, plateX, plateBottom, plateWidth, plateHeight, 10, CANVAS);
     doc.ops.push(
       `q ${num(drawWidth)} 0 0 ${num(drawHeight)} ` +
-        `${num(MARGIN_X + (COLUMN - drawWidth) / 2)} ${num(boxBottom + 10)} cm /Im0 Do Q`,
+        `${num(MARGIN_X + (COLUMN - drawWidth) / 2)} ${num(plateBottom + 12)} cm /Im0 Do Q`,
     );
-    doc.y = boxBottom - 10;
+    doc.y = plateBottom - 10;
     paintStack(doc, captionStack, MARGIN_X, doc.y);
     doc.y -= captionStack.height;
+    // The execution half opens the next page, whatever room is left here.
+    beginPage(doc);
+  } else {
+    doc.y -= 22;
   }
 
-  /* -- technical -------------------------------------------------------- */
+  /* -- execution -------------------------------------------------------- */
 
-  doc.y -= 22;
   sectionHeading(doc, labels.technicalHeading);
   const folds = Array.isArray(input.folds) ? input.folds : [];
-  const technical: Row[] = [
-    {
-      label: labels.ensembleMeanLabel,
-      value: monthsValue(input.months, 4),
-    },
-  ];
-  for (let i = 0; i < folds.length; i++) {
-    technical.push({
-      label: fill(labels.networkOutputLabelTemplate, {
-        index: String(i + 1),
-      }),
-      value: monthsValue(folds[i], 4),
-    });
+  const meanRow: Field[] =
+    folds.length > 0
+      ? []
+      : [{ label: labels.ensembleMeanLabel, value: monthsValue(input.months, 4) }];
+  if (folds.length > 0) {
+    foldChart(
+      doc,
+      folds.map((_fold, index) =>
+        fill(labels.networkOutputLabelTemplate, { index: String(index + 1) }),
+      ),
+      folds,
+      input.months,
+      labels.ensembleMeanLabel,
+      monthsValue(input.months, 4),
+      (value) => monthsValue(value, 4),
+    );
+    doc.y -= 8;
   }
-  technical.push(
-    {
-      label: labels.runtimeLabel,
-      value: fill(labels.secondsValueTemplate, {
-        seconds: decimal(input.seconds, 1),
-      }),
-    },
-    {
-      label: labels.cropLabel,
-      value: fill(labels.cropValueTemplate, {
-        x0: formatInteger(input.crop.x0),
-        y0: formatInteger(input.crop.y0),
-        x1: formatInteger(input.crop.x1),
-        y1: formatInteger(input.crop.y1),
-      }),
-    },
-    { label: labels.modelLabel, value: input.modelId },
-    { label: labels.modelRevisionLabel, value: input.modelRevision },
-    {
-      label: labels.executionEnvironmentLabel,
-      value: labels.executionEnvironmentValue,
-    },
-    { label: labels.preprocessingLabel, value: labels.preprocessingValue },
+  fieldGrid(
+    doc,
+    [
+      ...meanRow,
+      {
+        label: labels.runtimeLabel,
+        value: fill(labels.secondsValueTemplate, {
+          seconds: decimal(input.seconds, 1),
+        }),
+      },
+      { label: labels.modelLabel, value: input.modelId },
+      { label: labels.modelRevisionLabel, value: input.modelRevision },
+      {
+        label: labels.executionEnvironmentLabel,
+        value: labels.executionEnvironmentValue,
+      },
+      {
+        label: labels.cropLabel,
+        value: fill(labels.cropValueTemplate, {
+          x0: formatInteger(input.crop.x0),
+          y0: formatInteger(input.crop.y0),
+          x1: formatInteger(input.crop.x1),
+          y1: formatInteger(input.crop.y1),
+        }),
+      },
+    ],
+    2,
   );
-  drawRows(doc, technical);
+  fieldGrid(
+    doc,
+    [{ label: labels.preprocessingLabel, value: labels.preprocessingValue }],
+    1,
+  );
 
   /* -- references ------------------------------------------------------- */
 
-  doc.y -= 22;
+  doc.y -= 20;
   sectionHeading(doc, labels.referencesHeading);
   const referenceStyle: Style = {
     bold: false,
-    size: 8.5,
+    size: 8,
     color: MUTED,
-    leading: 12,
+    leading: 11,
   };
-  const bullet = encodeWinAnsi("•");
   for (const reference of [
     labels.referenceModelLine,
     labels.referenceArchitectureLine,
@@ -1156,48 +1655,122 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
     if (!reference) continue;
     const stack = layoutStack(
       [{ text: reference, style: referenceStyle, gapBefore: 0 }],
-      COLUMN - 14,
+      COLUMN - 16,
     );
-    ensure(doc, stack.height + 7);
-    drawEncoded(doc, bullet, MARGIN_X, doc.y - referenceStyle.size * ASCENT, {
-      ...referenceStyle,
-      color: GREEN,
-    });
-    paintStack(doc, stack, MARGIN_X + 14, doc.y);
-    doc.y -= stack.height + 7;
+    ensure(doc, stack.height + 6);
+    fillPath(doc, roundedPath(MARGIN_X + 1, doc.y - 6.4, 3, 3, 0.7), GREEN);
+    paintStack(doc, stack, MARGIN_X + 16, doc.y);
+    doc.y -= stack.height + 6;
   }
 
   /* -- disclaimer ------------------------------------------------------- */
 
-  const disclaimerWidth = COLUMN - 32;
   const disclaimerStack = layoutStack(
     [
       {
         text: labels.disclaimerHeading,
-        style: { bold: true, size: 9, color: WARN_INK, leading: 13 },
+        style: {
+          bold: true,
+          size: 8.6,
+          color: WARN_INK,
+          leading: 12,
+          tracking: 0.4,
+        },
         gapBefore: 0,
       },
       {
         text: labels.disclaimerText,
-        style: { bold: false, size: 8.5, color: WARN_INK, leading: 12.5 },
+        style: { bold: false, size: 8, color: WARN_INK, leading: 11.5 },
         gapBefore: 3,
       },
     ],
-    disclaimerWidth,
+    COLUMN - 62,
   );
-  const boxHeight = disclaimerStack.height + 28;
-  doc.y -= 16;
-  ensure(doc, boxHeight);
-  fillRect(doc, MARGIN_X, doc.y - boxHeight, COLUMN, boxHeight, WARN_FILL);
-  strokeRect(doc, MARGIN_X, doc.y - boxHeight, COLUMN, boxHeight, WARN_LINE);
-  paintStack(doc, disclaimerStack, MARGIN_X + 16, doc.y - 14);
-  doc.y -= boxHeight;
+  const warnHeight = disclaimerStack.height + 28;
+  doc.y -= 18;
+  ensure(doc, warnHeight);
+  const warnBottom = doc.y - warnHeight;
+  card(doc, MARGIN_X, warnBottom, COLUMN, warnHeight, 8, WARN_FILL, WARN_LINE);
+  // A drawn mark rather than a glyph: no word of this document lives in code.
+  const markX = MARGIN_X + 22;
+  const markY = doc.y - 20;
+  fillPath(doc, circlePath(markX, markY, 7.5), WARN_INK);
+  fillPath(doc, roundedPath(markX - 0.9, markY - 1, 1.8, 5.6, 0.9), WARN_FILL);
+  fillPath(doc, circlePath(markX, markY - 3.6, 1), WARN_FILL);
+  paintStack(doc, disclaimerStack, MARGIN_X + 40, doc.y - 14);
+  doc.y = warnBottom;
+
+  /* -- the card that sends the reader to the site ----------------------- */
+
+  const qrPanel = qr ? 96 : 0;
+  const promoWidth = COLUMN - 36 - (qr ? qrPanel + 18 : 0);
+  const promoStack = layoutStack(
+    [
+      {
+        text: labels.promoEyebrow,
+        style: {
+          bold: true,
+          size: 6.6,
+          color: MINT,
+          leading: 9.5,
+          tracking: 1,
+        },
+        gapBefore: 0,
+      },
+      {
+        text: labels.promoHeading,
+        style: { bold: true, size: 13.5, color: WHITE, leading: 16.5 },
+        gapBefore: 8,
+      },
+      {
+        text: labels.promoText,
+        style: { bold: false, size: 8.2, color: MINT, leading: 11.5 },
+        gapBefore: 6,
+      },
+    ],
+    promoWidth,
+  );
+  const urlStyle: Style = { bold: true, size: 13, color: WHITE, leading: 16 };
+  const promoBody = Math.max(promoStack.height + 26, qr ? qrPanel + 16 : 0);
+  const promoHeight = promoBody + 36;
+  doc.y -= 22;
+  ensure(doc, promoHeight);
+  const promoBottom = doc.y - promoHeight;
+  const promoPath = roundedPath(MARGIN_X, promoBottom, COLUMN, promoHeight, 12);
+  gradient(doc, "Sh1", promoPath, MARGIN_X, promoBottom, COLUMN, promoHeight);
+  // The words and the address ride centred against the taller QR panel.
+  const written = promoStack.height + 14 + urlStyle.size;
+  const writtenTop = promoBottom + (promoHeight + written) / 2;
+  paintStack(doc, promoStack, MARGIN_X + 18, writtenTop);
+
+  const urlBaseline =
+    writtenTop - promoStack.height - 14 - urlStyle.size * ASCENT;
+  const urlBytes = encodeWinAnsi(labels.siteUrl);
+  const urlWidth = styleWidth(urlBytes, urlStyle);
+  drawEncoded(doc, urlBytes, MARGIN_X + 18, urlBaseline, urlStyle);
+  hairline(doc, MARGIN_X + 18, urlBaseline - 5, urlWidth, MINT);
+
+  if (qr) {
+    const panelX = RIGHT_EDGE - 18 - qrPanel;
+    const panelBottom = promoBottom + (promoHeight - (qrPanel + 16)) / 2;
+    card(doc, panelX, panelBottom, qrPanel, qrPanel + 16, 8, WHITE);
+    drawQr(doc, qr, panelX + 10, panelBottom + 22, qrPanel - 20, DEEP);
+    drawCentre(doc, labels.promoQrCaption, panelX + qrPanel / 2, panelBottom + 8, {
+      bold: false,
+      size: 6.2,
+      color: GREEN,
+      leading: 8,
+      tracking: 0.2,
+    });
+  }
+  link(doc, labels.siteLink, MARGIN_X, promoBottom, COLUMN, promoHeight);
+  doc.y = promoBottom;
 
   /* -- footers ---------------------------------------------------------- */
 
   const footerStyle: Style = {
     bold: false,
-    size: 7.5,
+    size: 7,
     color: MUTED,
     leading: 10,
   };
@@ -1221,10 +1794,13 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
   /* -- objects ---------------------------------------------------------- */
 
   const firstPage = hasImage ? IMAGE + 1 : IMAGE;
+  const firstContent = firstPage + total;
+  const firstAnnot = firstContent + total;
   const kids: string[] = [];
   for (let i = 0; i < total; i++) kids.push(`${firstPage + i} 0 R`);
   const resources =
     `/Resources << /Font << /F1 ${FONT_REGULAR} 0 R /F2 ${FONT_BOLD} 0 R >>` +
+    ` /Shading << /Sh0 ${SHADE_BAND} 0 R /Sh1 ${SHADE_CARD} 0 R >>` +
     (hasImage ? ` /XObject << /Im0 ${IMAGE} 0 R >>` : "") +
     " >>";
 
@@ -1248,6 +1824,8 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
   objects[INFO - 1] = {
     dict: `<< /Title (${escapeString(encodeWinAnsi(labels.documentTitle))}) >>`,
   };
+  objects[SHADE_BAND - 1] = { dict: shading(DEEP, MID, "0 0 1 1") };
+  objects[SHADE_CARD - 1] = { dict: shading(MID, DEEP, "0 0 1 1") };
   if (hasImage) {
     objects[IMAGE - 1] = {
       dict:
@@ -1258,16 +1836,31 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
       stream: jpeg,
     };
   }
+  const annotations: string[][] = Array.from({ length: total }, () => []);
+  let annotNumber = firstAnnot;
+  for (const entry of doc.links) {
+    if (entry.page < 0 || entry.page >= total) continue;
+    objects[annotNumber - 1] = {
+      dict:
+        "<< /Type /Annot /Subtype /Link /Border [0 0 0]" +
+        ` /Rect [${entry.rect.map(num).join(" ")}]` +
+        ` /A << /S /URI /URI (${escapeString(encodeWinAnsi(entry.uri))}) >> >>`,
+    };
+    annotations[entry.page].push(`${annotNumber} 0 R`);
+    annotNumber++;
+  }
   for (let i = 0; i < total; i++) {
-    const contentNumber = firstPage + total + i;
+    const annots = annotations[i];
     objects[firstPage + i - 1] = {
       dict:
         `<< /Type /Page /Parent ${PAGES} 0 R` +
         ` /MediaBox [0 0 ${num(PAGE_WIDTH)} ${num(PAGE_HEIGHT)}]` +
-        ` ${resources} /Contents ${contentNumber} 0 R >>`,
+        ` ${resources} /Contents ${firstContent + i} 0 R` +
+        (annots.length > 0 ? ` /Annots [${annots.join(" ")}]` : "") +
+        " >>",
     };
     const content = doc.pages[i].join("\n");
-    objects[contentNumber - 1] = {
+    objects[firstContent + i - 1] = {
       dict: `<< /Length ${content.length} >>`,
       stream: latin1Bytes(content),
     };

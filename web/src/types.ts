@@ -1,3 +1,5 @@
+import type { ProfessionalAssessment } from "./professional";
+
 export interface GrayImage {
   pixels: Uint8Array;
   width: number;
@@ -36,4 +38,5 @@ export interface Result {
   sex: "male" | "female";
   dob: string;
   examDate: string;
+  professional?: ProfessionalAssessment;
 }

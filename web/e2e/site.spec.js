@@ -135,6 +135,9 @@ const WIDTHS = [
   ["768", 768, 1024],
 ];
 test("small screens neither overflow nor overlap", async ({ page }) => {
+  // Keep the download pending so cancellation/layout do not depend on locally
+  // installed model weights or on how quickly a missing manifest fails.
+  await page.context().route("**/models/manifest.json", () => {});
   const overlaps = async () =>
     page.evaluate(() => {
       const name = (el) =>
@@ -215,6 +218,7 @@ test("small screens neither overflow nor overlap", async ({ page }) => {
 test("the sample radiograph loads its data and starts the analysis", async ({
   page,
 }) => {
+  await page.context().route("**/models/manifest.json", () => {});
   await page.goto("./");
   await page.locator("#demo").click();
   await expect(page.locator("#viewer")).toBeVisible({ timeout: 30_000 });

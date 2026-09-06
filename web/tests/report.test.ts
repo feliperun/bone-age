@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { presentReport, scaleOf } from "../src/report-presentation";
 import {
   buildReportPdf,
   encodeWinAnsi,
@@ -252,6 +253,83 @@ function input(overrides: Partial<ReportInput> = {}): ReportInput {
 
 /* ------------------------------------------------------------------ tests */
 
+describe("shared screen/PDF presentation", () => {
+  it("keeps a transcribed assessment separate from the AI and chronological age", () => {
+    const data = input({
+      professional: { months: 120, method: "Greulich-Pyle", source: "Example service", date: "2026-09-05" },
+      labels: { ...labels, professionalComparison: {
+        heading: "Supplied professional assessment", ageLabel: "Supplied bone age",
+        differenceLabel: "AI minus supplied assessment", sourceLabel: "Source", methodLabel: "Method",
+        dateLabel: "Assessment date", notice: "User-transcribed. Same examination. Not authenticated.",
+      } },
+    });
+    const p = presentReport(data);
+    expect(p.professional?.fields[0].value).toBe("120,0 meses");
+    expect(p.professional?.fields[1].value).toBe("+14,2 meses");
+    expect(p.estimatedValue).toBe("134,2 meses");
+    expect(p.differenceValue).toBe("+0,6 meses");
+    const pdf = parsePdf(buildReportPdf(data));
+    expect(pdf.pageCount).toBe(3);
+    for (const field of p.professional!.fields) expect(pdf.text).toContain(encodeWinAnsi(field.value));
+    expect(presentReport(input()).professional).toBeUndefined();
+  });
+  it.each([120, 134.2481, 150, undefined, NaN])(
+    "keeps the same displayed ages and fields for chronological age %s",
+    (chronologicalMonths) => {
+      const data = input({ chronologicalMonths });
+      const p = presentReport(data);
+      const pdf = latin1(buildReportPdf(data));
+      for (const value of [
+        p.estimatedValue,
+        p.chronologicalValue,
+        p.differenceValue,
+        p.meanValue,
+        ...p.folds.map((f) => f.value),
+        ...p.examFields.map((f) => f.value),
+      ]) {
+        expect(pdf).toContain(`(${encodeWinAnsi(value)}) Tj`);
+      }
+      expect(p.estimatedValue).toBe("134,2 meses");
+      expect(p.meanValue).toBe("134,2481 meses");
+      if (!Number.isFinite(chronologicalMonths)) {
+        expect(p.chronologicalValue).toBe("Não informada");
+        expect(p.differenceValue).toBe("Não calculada");
+      }
+    },
+  );
+
+  it("distinguishes signed differences, missing age and newborn age", () => {
+    expect(
+      presentReport(input({ chronologicalMonths: 150 })).differenceValue,
+    ).toBe("-15,8 meses");
+    expect(
+      presentReport(input({ chronologicalMonths: 120 })).differenceValue,
+    ).toBe("+14,2 meses");
+    expect(
+      presentReport(input({ months: 0, chronologicalMonths: 0 }))
+        .differenceValue,
+    ).toBe("+0,0 meses");
+    expect(
+      presentReport(input({ chronologicalMonths: 0 })).chronologicalValue,
+    ).toBe("0,0 meses");
+  });
+
+  it.each([[0, 0], [134.2], [134.2, 134.2], [0, 239], [120, 160]])(
+    "maps the same age scale into PDF points and screen percentages: %j",
+    (...values) => {
+      const screen = scaleOf(values);
+      const pdf = scaleOf(values, 42, 500);
+      expect(screen.min).toBeGreaterThanOrEqual(0);
+      expect(screen.max).toBeGreaterThan(screen.min);
+      for (const value of values) {
+        expect(screen.at(value)).toBeGreaterThanOrEqual(0);
+        expect(screen.at(value)).toBeLessThanOrEqual(100);
+        expect(pdf.at(value)).toBeCloseTo(42 + screen.at(value) * 5);
+      }
+    },
+  );
+});
+
 describe("PDF container", () => {
   it("opens with the signature, closes with %%EOF and keeps a valid xref", () => {
     const parsed = parsePdf(buildReportPdf(input()));
@@ -327,9 +405,10 @@ describe("embedded radiograph", () => {
 
   it("scales to fit its box, preserving the aspect ratio", () => {
     const draw = (pdf: Uint8Array) => {
-      const match = /q ([\d.]+) 0 0 ([\d.]+) ([\d.]+) ([\d.]+) cm \/Im0 Do Q/.exec(
-        latin1(pdf),
-      );
+      const match =
+        /q ([\d.]+) 0 0 ([\d.]+) ([\d.]+) ([\d.]+) cm \/Im0 Do Q/.exec(
+          latin1(pdf),
+        );
       expect(match).not.toBeNull();
       const found = match as RegExpExecArray;
       return {
@@ -384,13 +463,15 @@ describe("cp1252 text encoding", () => {
   });
 
   it("maps every printable cp1252 code point to its own byte", () => {
-    expect([...encodeWinAnsi("áçãéíóúâêôõ")].map((c) => c.charCodeAt(0))).toEqual(
-      [0xe1, 0xe7, 0xe3, 0xe9, 0xed, 0xf3, 0xfa, 0xe2, 0xea, 0xf4, 0xf5],
-    );
-    expect(encodeWinAnsi("•–—…’“”™").charCodeAt(0)).toBe(0x95);
-    expect([...encodeWinAnsi("•–—…’“”™")].map((c) => c.charCodeAt(0))).toEqual([
-      0x95, 0x96, 0x97, 0x85, 0x92, 0x93, 0x94, 0x99,
+    expect(
+      [...encodeWinAnsi("áçãéíóúâêôõ")].map((c) => c.charCodeAt(0)),
+    ).toEqual([
+      0xe1, 0xe7, 0xe3, 0xe9, 0xed, 0xf3, 0xfa, 0xe2, 0xea, 0xf4, 0xf5,
     ]);
+    expect(encodeWinAnsi("•–—…’“”™").charCodeAt(0)).toBe(0x95);
+    expect([...encodeWinAnsi("•–—…’“”™")].map((c) => c.charCodeAt(0))).toEqual(
+      [0x95, 0x96, 0x97, 0x85, 0x92, 0x93, 0x94, 0x99],
+    );
   });
 
   it("degrades characters outside cp1252 instead of corrupting bytes", () => {
@@ -457,10 +538,14 @@ describe("measurement and wrapping", () => {
     const expected = wrapText(longText, false, 8, 499.276 - 62).length;
     expect(expected).toBeGreaterThan(6);
     const short = countDrawnStrings(
-      buildReportPdf(input({ labels: { ...labels, disclaimerText: "Curto." } })),
+      buildReportPdf(
+        input({ labels: { ...labels, disclaimerText: "Curto." } }),
+      ),
     );
     const long = countDrawnStrings(
-      buildReportPdf(input({ labels: { ...labels, disclaimerText: longText } })),
+      buildReportPdf(
+        input({ labels: { ...labels, disclaimerText: longText } }),
+      ),
     );
     expect(long - short).toBeGreaterThanOrEqual(expected - 1);
   });
@@ -491,8 +576,7 @@ describe("locale formatting", () => {
 });
 
 describe("the site on the page", () => {
-  const count = (text: string, needle: string) =>
-    text.split(needle).length - 1;
+  const count = (text: string, needle: string) => text.split(needle).length - 1;
 
   it("prints the address and the closing invitation", () => {
     const text = latin1(buildReportPdf(input()));
@@ -511,7 +595,9 @@ describe("the site on the page", () => {
     // One masthead per page, plus the closing card.
     expect(links.length).toBe(parsed.pageCount + 1);
     for (const object of links) {
-      expect(object.body).toContain("/A << /S /URI /URI (https://bone-age.app) >>");
+      expect(object.body).toContain(
+        "/A << /S /URI /URI (https://bone-age.app) >>",
+      );
       const rect = /\/Rect \[([-\d. ]+)\]/.exec(object.body);
       expect(rect).not.toBeNull();
       const [x0, y0, x1, y1] = (rect as RegExpExecArray)[1]

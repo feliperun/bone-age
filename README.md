@@ -4,6 +4,11 @@ Bone age assessment from hand radiographs using the [ianpan/bone-age](https://hu
 
 ## Browser app — fully local inference
 
+The on-screen result and PDF share their summary, age scale, examination fields,
+radiograph preview, network outputs and limitations. See the
+[research notes on bone age assessment and reporting](docs/idade-ossea-e-laudo.md)
+for the sources and the distinction between an experimental estimate and a clinical report.
+
 **[Open the app](https://bone-age.app)**
 
 Open a radiograph, crop the **left hand**, confirm orientation and sex, and run all

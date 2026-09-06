@@ -15,6 +15,13 @@
 // drawn mark, the warning sign in the disclaimer, is geometry, not a glyph.
 
 import { encodeQr, type QrCode } from "./qr";
+import type { ProfessionalAssessment } from "./professional";
+import {
+  fill,
+  formatInteger,
+  presentReport,
+  scaleOf,
+} from "./report-presentation";
 
 /* ------------------------------------------------------------------ types */
 
@@ -40,6 +47,15 @@ export interface ReportImage {
  * i18n key. Templates use `{placeholder}` markers, listed per field.
  */
 export interface ReportLabels {
+  professionalComparison?: {
+    heading: string;
+    ageLabel: string;
+    differenceLabel: string;
+    sourceLabel: string;
+    methodLabel: string;
+    dateLabel: string;
+    notice: string;
+  };
   /** Product name printed at the top left of every page. */
   productName: string;
   /** Short badge at the top right, e.g. "USO EXPERIMENTAL". */
@@ -161,6 +177,7 @@ export interface ReportLabels {
 }
 
 export interface ReportInput {
+  professional?: ProfessionalAssessment;
   /** Ensemble estimate in months. */
   months: number;
   /** The three individual network outputs, in months. */
@@ -201,17 +218,17 @@ const COMBINING = /[\u0300-\u036f]/g;
 const WIN_ANSI_HIGH: Record<string, number | undefined> = {
   "€": 0x80,
   "‚": 0x82,
-  "ƒ": 0x83,
+  ƒ: 0x83,
   "„": 0x84,
   "…": 0x85,
   "†": 0x86,
   "‡": 0x87,
-  "ˆ": 0x88,
+  ˆ: 0x88,
   "‰": 0x89,
-  "Š": 0x8a,
+  Š: 0x8a,
   "‹": 0x8b,
-  "Œ": 0x8c,
-  "Ž": 0x8e,
+  Œ: 0x8c,
+  Ž: 0x8e,
   "‘": 0x91,
   "’": 0x92,
   "“": 0x93,
@@ -221,11 +238,11 @@ const WIN_ANSI_HIGH: Record<string, number | undefined> = {
   "—": 0x97,
   "˜": 0x98,
   "™": 0x99,
-  "š": 0x9a,
+  š: 0x9a,
   "›": 0x9b,
-  "œ": 0x9c,
-  "ž": 0x9e,
-  "Ÿ": 0x9f,
+  œ: 0x9c,
+  ž: 0x9e,
+  Ÿ: 0x9f,
 };
 
 // Characters outside cp1252 worth spelling out instead of dropping to "?".
@@ -450,50 +467,6 @@ export function wrapText(
 
 /* ------------------------------------------------------ formatting helpers */
 
-function fill(template: string, values: Record<string, string>): string {
-  return String(template ?? "").replace(
-    /\{(\w+)\}/g,
-    (match: string, key: string) =>
-      Object.prototype.hasOwnProperty.call(values, key) ? values[key] : match,
-  );
-}
-
-function formatNumber(value: number, locale: string, digits: number): string {
-  if (!Number.isFinite(value)) return String(value);
-  try {
-    return new Intl.NumberFormat(locale, {
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits,
-    }).format(value);
-  } catch {
-    return value.toFixed(digits);
-  }
-}
-
-function formatInteger(value: number): string {
-  return Number.isFinite(value) ? String(Math.round(value)) : String(value);
-}
-
-function formatIsoDate(iso: string, locale: string): string {
-  const text = String(iso ?? "").trim();
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
-  if (!match) return text;
-  const date = new Date(
-    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
-  );
-  if (Number.isNaN(date.getTime())) return text;
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      timeZone: "UTC",
-    }).format(date);
-  } catch {
-    return text;
-  }
-}
-
 function formatIsoDateTime(iso: string, locale: string): string {
   const text = String(iso ?? "").trim();
   const date = new Date(text);
@@ -660,7 +633,13 @@ function drawCentre(
   style: Style,
 ) {
   const bytes = encodeWinAnsi(text);
-  drawEncoded(doc, bytes, centre - styleWidth(bytes, style) / 2, baseline, style);
+  drawEncoded(
+    doc,
+    bytes,
+    centre - styleWidth(bytes, style) / 2,
+    baseline,
+    style,
+  );
 }
 
 /* ----------------------------------------------------------------- shapes */
@@ -671,7 +650,13 @@ function hairline(doc: Doc, x: number, y: number, width: number, rgb = RULE) {
   );
 }
 
-function vertical(doc: Doc, x: number, top: number, height: number, rgb = RULE) {
+function vertical(
+  doc: Doc,
+  x: number,
+  top: number,
+  height: number,
+  rgb = RULE,
+) {
   doc.ops.push(
     `${color(rgb)} RG 0.6 w ${num(x)} ${num(top)} m ${num(x)} ${num(top - height)} l S`,
   );
@@ -881,7 +866,14 @@ function masthead(doc: Doc) {
   };
   const siteWidth = styleWidth(encodeWinAnsi(labels.siteUrl), site);
   drawRight(doc, labels.siteUrl, RIGHT_EDGE, eyebrow, site);
-  link(doc, labels.siteLink, RIGHT_EDGE - siteWidth, eyebrow - 4, siteWidth, 15);
+  link(
+    doc,
+    labels.siteLink,
+    RIGHT_EDGE - siteWidth,
+    eyebrow - 4,
+    siteWidth,
+    15,
+  );
 
   if (!cover) {
     doc.y = bottom - 26;
@@ -907,7 +899,13 @@ function masthead(doc: Doc) {
     [0.294, 0.51, 0.435],
     0.8,
   );
-  drawEncoded(doc, badgeBytes, RIGHT_EDGE - pillWidth + 9, PAGE_HEIGHT - 77.5, badge);
+  drawEncoded(
+    doc,
+    badgeBytes,
+    RIGHT_EDGE - pillWidth + 9,
+    PAGE_HEIGHT - 77.5,
+    badge,
+  );
   if (doc.generated) {
     drawRight(doc, doc.generated, RIGHT_EDGE, PAGE_HEIGHT - 98, {
       bold: false,
@@ -986,12 +984,7 @@ const CHIP_VALUE: Style = { bold: false, size: 8.6, color: INK, leading: 11 };
  * of the row's `columns` each chip covers, so consecutive rows line up on the
  * same grid however many chips they carry.
  */
-function chipRow(
-  doc: Doc,
-  fields: Field[],
-  spans: number[],
-  columns: number,
-) {
+function chipRow(doc: Doc, fields: Field[], spans: number[], columns: number) {
   const gap = 8;
   const unit = (COLUMN - gap * (columns - 1)) / columns;
   const widths = spans.map((span) => unit * span + gap * (span - 1));
@@ -1034,11 +1027,17 @@ function fieldGrid(doc: Doc, fields: Field[], columns: number) {
       ),
     );
     const height =
-      stacks.reduce((tallest, stack) => Math.max(tallest, stack.height), 0) + 15;
+      stacks.reduce((tallest, stack) => Math.max(tallest, stack.height), 0) +
+      15;
     ensure(doc, height);
     hairline(doc, MARGIN_X, doc.y, COLUMN);
     for (let column = 0; column < stacks.length; column++) {
-      paintStack(doc, stacks[column], MARGIN_X + column * (width + gap), doc.y - 9);
+      paintStack(
+        doc,
+        stacks[column],
+        MARGIN_X + column * (width + gap),
+        doc.y - 9,
+      );
     }
     doc.y -= height;
   }
@@ -1052,22 +1051,6 @@ interface Marker {
   /** Above the track for the estimate, below it for the reference. */
   above: boolean;
   color: Rgb;
-}
-
-/** Maps a value to a position, with a domain padded around the extremes. */
-function scaleOf(values: number[], x: number, width: number) {
-  const low = Math.min(...values);
-  const high = Math.max(...values);
-  const pad = Math.max((high - low) * 0.75, 6);
-  const min = Math.max(0, low - pad);
-  const max = high + pad;
-  const span = max - min || 1;
-  return {
-    min,
-    max,
-    at: (value: number) =>
-      x + ((Math.min(Math.max(value, min), max) - min) / span) * width,
-  };
 }
 
 /**
@@ -1088,7 +1071,11 @@ function comparisonScale(
     width,
   );
   const rail = top - 16;
-  fillPath(doc, roundedPath(x, rail - 3.5, width, 7, 3.5), [0.898, 0.918, 0.878]);
+  fillPath(
+    doc,
+    roundedPath(x, rail - 3.5, width, 7, 3.5),
+    [0.898, 0.918, 0.878],
+  );
   if (markers.length > 1) {
     // The stretch between the two ages, which is what the reader is after.
     const from = Math.min(...markers.map((marker) => scale.at(marker.value)));
@@ -1344,10 +1331,8 @@ function shading(from: Rgb, to: Rgb, coords: string): string {
 export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
   const labels = input.labels;
   const locale = input.locale || "en-US";
-  const decimal = (value: number, digits: number) =>
-    formatNumber(value, locale, digits);
-  const monthsValue = (value: number, digits: number) =>
-    fill(labels.monthsValueTemplate, { months: decimal(value, digits) });
+  const presentation = presentReport(input);
+  const { monthsValue, chronological } = presentation;
 
   const jpeg = input.image.jpeg;
   const imageWidth = input.image.width;
@@ -1387,14 +1372,6 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
 
   /* -- headline card ---------------------------------------------------- */
 
-  const chronological =
-    typeof input.chronologicalMonths === "number" &&
-    Number.isFinite(input.chronologicalMonths)
-      ? input.chronologicalMonths
-      : undefined;
-  const difference =
-    chronological === undefined ? undefined : input.months - chronological;
-
   const eyebrow: Style = {
     bold: false,
     size: 6.9,
@@ -1408,7 +1385,7 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
     [
       { text: labels.estimatedBoneAgeLabel, style: eyebrow, gapBefore: 0 },
       {
-        text: monthsValue(input.months, 1),
+        text: presentation.estimatedValue,
         style: { bold: true, size: 26, color: GREEN, leading: 30 },
         gapBefore: 6,
       },
@@ -1425,16 +1402,15 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
     [
       { text: labels.chronologicalAgeLabel, style: eyebrow, gapBefore: 0 },
       {
-        text:
-          chronological === undefined
-            ? labels.notInformedValue
-            : monthsValue(chronological, 1),
+        text: presentation.chronologicalValue,
         style: { bold: true, size: 14, color: INK, leading: 18 },
         gapBefore: 6,
       },
       {
         text:
-          chronological === undefined ? "" : (labels.chronologicalAgeText ?? ""),
+          chronological === undefined
+            ? ""
+            : (labels.chronologicalAgeText ?? ""),
         style: caption,
         gapBefore: 3,
       },
@@ -1445,13 +1421,7 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
     [
       { text: labels.differenceLabel, style: eyebrow, gapBefore: 0 },
       {
-        text:
-          difference === undefined
-            ? labels.notComputedValue
-            : fill(labels.differenceValueTemplate, {
-                sign: difference < 0 ? "-" : "+",
-                months: decimal(Math.abs(difference), 1),
-              }),
+        text: presentation.differenceValue,
         style: { bold: true, size: 14, color: INK, leading: 18 },
         gapBefore: 6,
       },
@@ -1506,44 +1476,39 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
   /* -- exam data -------------------------------------------------------- */
 
   sectionHeading(doc, labels.examDataHeading);
-  chipRow(
-    doc,
-    [
-      { label: labels.sexLabel, value: labels.sexValue },
-      {
-        label: labels.dateOfBirthLabel,
-        value: input.dateOfBirth
-          ? formatIsoDate(input.dateOfBirth, locale)
-          : labels.notInformedValue,
-      },
-      {
-        label: labels.examinationDateLabel,
-        value: formatIsoDate(input.examinationDate, locale),
-      },
-    ],
-    [1, 1, 1],
-    3,
-  );
+  chipRow(doc, presentation.examFields.slice(0, 3), [1, 1, 1], 3);
   doc.y -= 8;
   chipRow(
     doc,
-    [
-      { label: labels.sourceFileLabel, value: input.fileName },
-      {
-        label: labels.analysedImageSizeLabel,
-        value: hasImage
-          ? fill(labels.imageSizeValueTemplate, {
-              width: formatInteger(imageWidth),
-              height: formatInteger(imageHeight),
-            })
-          : labels.notInformedValue,
-      },
-    ],
+    presentation.examFields
+      .slice(3)
+      .map((field, index) =>
+        index === 1 && !hasImage
+          ? { ...field, value: labels.notInformedValue }
+          : field,
+      ),
     [2, 1],
     3,
   );
 
   /* -- radiograph ------------------------------------------------------- */
+
+  if (presentation.professional && labels.professionalComparison) {
+    doc.y -= 20;
+    sectionHeading(doc, labels.professionalComparison.heading);
+    chipRow(doc, presentation.professional.fields.slice(0, 2), [1, 1], 3);
+    doc.y -= 10;
+    fieldGrid(doc, presentation.professional.fields.slice(2), 2);
+    const note = layoutStack([
+      { text: labels.professionalComparison.notice, style: caption, gapBefore: 0 },
+    ], COLUMN);
+    ensure(doc, note.height + 12);
+    paintStack(doc, note, MARGIN_X, doc.y - 8);
+    doc.y -= note.height + 12;
+    // The optional comparison gets space on the cover; keep the image and
+    // execution together on their own pages instead of shrinking the image.
+    if (hasImage) beginPage(doc);
+  }
 
   if (hasImage) {
     const captionStack = layoutStack(
@@ -1586,7 +1551,12 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
   const meanRow: Field[] =
     folds.length > 0
       ? []
-      : [{ label: labels.ensembleMeanLabel, value: monthsValue(input.months, 4) }];
+      : [
+          {
+            label: labels.ensembleMeanLabel,
+            value: monthsValue(input.months, 4),
+          },
+        ];
   if (folds.length > 0) {
     foldChart(
       doc,
@@ -1601,34 +1571,7 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
     );
     doc.y -= 8;
   }
-  fieldGrid(
-    doc,
-    [
-      ...meanRow,
-      {
-        label: labels.runtimeLabel,
-        value: fill(labels.secondsValueTemplate, {
-          seconds: decimal(input.seconds, 1),
-        }),
-      },
-      { label: labels.modelLabel, value: input.modelId },
-      { label: labels.modelRevisionLabel, value: input.modelRevision },
-      {
-        label: labels.executionEnvironmentLabel,
-        value: labels.executionEnvironmentValue,
-      },
-      {
-        label: labels.cropLabel,
-        value: fill(labels.cropValueTemplate, {
-          x0: formatInteger(input.crop.x0),
-          y0: formatInteger(input.crop.y0),
-          x1: formatInteger(input.crop.x1),
-          y1: formatInteger(input.crop.y1),
-        }),
-      },
-    ],
-    2,
-  );
+  fieldGrid(doc, [...meanRow, ...presentation.technicalFields], 2);
   fieldGrid(
     doc,
     [{ label: labels.preprocessingLabel, value: labels.preprocessingValue }],
@@ -1637,7 +1580,7 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
 
   /* -- references ------------------------------------------------------- */
 
-  doc.y -= 20;
+  doc.y -= 16;
   sectionHeading(doc, labels.referencesHeading);
   const referenceStyle: Style = {
     bold: false,
@@ -1645,13 +1588,7 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
     color: MUTED,
     leading: 11,
   };
-  for (const reference of [
-    labels.referenceModelLine,
-    labels.referenceArchitectureLine,
-    labels.referenceDatasetLine,
-    labels.referenceLicenseLine,
-    labels.referenceApplicationLine,
-  ]) {
+  for (const reference of presentation.references) {
     if (!reference) continue;
     const stack = layoutStack(
       [{ text: reference, style: referenceStyle, gapBefore: 0 }],
@@ -1687,7 +1624,7 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
     COLUMN - 62,
   );
   const warnHeight = disclaimerStack.height + 28;
-  doc.y -= 18;
+  doc.y -= 14;
   ensure(doc, warnHeight);
   const warnBottom = doc.y - warnHeight;
   card(doc, MARGIN_X, warnBottom, COLUMN, warnHeight, 8, WARN_FILL, WARN_LINE);
@@ -1733,7 +1670,7 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
   const urlStyle: Style = { bold: true, size: 13, color: WHITE, leading: 16 };
   const promoBody = Math.max(promoStack.height + 26, qr ? qrPanel + 16 : 0);
   const promoHeight = promoBody + 36;
-  doc.y -= 22;
+  doc.y -= 16;
   ensure(doc, promoHeight);
   const promoBottom = doc.y - promoHeight;
   const promoPath = roundedPath(MARGIN_X, promoBottom, COLUMN, promoHeight, 12);
@@ -1755,13 +1692,19 @@ export function buildReportPdf(input: ReportInput): Uint8Array<ArrayBuffer> {
     const panelBottom = promoBottom + (promoHeight - (qrPanel + 16)) / 2;
     card(doc, panelX, panelBottom, qrPanel, qrPanel + 16, 8, WHITE);
     drawQr(doc, qr, panelX + 10, panelBottom + 22, qrPanel - 20, DEEP);
-    drawCentre(doc, labels.promoQrCaption, panelX + qrPanel / 2, panelBottom + 8, {
-      bold: false,
-      size: 6.2,
-      color: GREEN,
-      leading: 8,
-      tracking: 0.2,
-    });
+    drawCentre(
+      doc,
+      labels.promoQrCaption,
+      panelX + qrPanel / 2,
+      panelBottom + 8,
+      {
+        bold: false,
+        size: 6.2,
+        color: GREEN,
+        leading: 8,
+        tracking: 0.2,
+      },
+    );
   }
   link(doc, labels.siteLink, MARGIN_X, promoBottom, COLUMN, promoHeight);
   doc.y = promoBottom;

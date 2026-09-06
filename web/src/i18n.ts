@@ -72,7 +72,7 @@ const pt = {
   "form.examDate": "Data do exame",
   "form.chrono": "Idade na data do exame",
   "form.confirm":
-    "Conferi que o recorte contém a <strong>mão esquerda em PA</strong>, com dedos para cima e punho visível.",
+    "Conferi que o recorte contém a <strong>mão esquerda em PA</strong>, com os cinco dedos completos apontando para cima e o punho visível.",
   "form.submit": 'Calcular idade óssea <span aria-hidden="true">→</span>',
   "form.cancel": "Cancelar processamento",
   "form.clinicalNote":
@@ -112,10 +112,43 @@ const pt = {
   "result.estimated": "Idade óssea estimada",
   "result.chrono": "Idade cronológica",
   "result.difference": "Diferença estimada",
-  "result.differenceNote": "Comparação descritiva, sem classificação diagnóstica.",
+  "result.differenceNote":
+    "Comparação descritiva, sem classificação diagnóstica.",
   "result.note":
     "O resultado depende da qualidade, orientação e recorte da imagem. A diferença entre idades, isoladamente, não define atraso ou avanço anormal de maturação.",
   "result.details": "Detalhes da execução local",
+  "review.open": "Ampliar e conferir",
+  "review.title": "Confira a imagem",
+  "review.close": "Fechar",
+  "review.help": "Confira a mão esquerda em PA, os cinco dedos completos e o punho. Verifique se os dedos apontam para cima e se o recorte não exclui estruturas. A conferência é sua; o aplicativo não valida a anatomia.",
+  "review.crop": "Recorte selecionado",
+  "review.full": "Imagem inteira",
+  "review.zoom": "Ampliação",
+  "review.fit": "Ajustar à tela",
+  "review.pan": "Imagem ampliada. Role para explorar.",
+  "review.footnote": "Para girar ou ajustar o recorte, feche esta janela e use os controles da imagem. A ampliação não modifica os dados da análise.",
+  "professional.entry": "Adicionar ou editar avaliação profissional · opcional",
+  "professional.heading": "Comparação com avaliação profissional informada",
+  "professional.help": "Se você já tem uma avaliação desta radiografia, transcreva a idade óssea e identifique sua origem. Os dados ficam apenas nesta sessão e entram no PDF depois de salvar.",
+  "professional.ageLabel": "Idade óssea informada",
+  "professional.differenceLabel": "Diferença: IA − avaliação informada",
+  "professional.years": "Anos completos",
+  "professional.months": "Meses adicionais",
+  "professional.method": "Método informado",
+  "professional.methodHelp": "Ex.: Greulich–Pyle, TW3 ou nome do sistema. Se ausente, escreva “não informado”.",
+  "professional.source": "Profissional ou serviço de origem",
+  "professional.date": "Data da avaliação",
+  "professional.sameExam": "Confirmo que esta avaliação se refere à mesma radiografia e à mesma data de exame exibidas acima.",
+  "professional.save": "Salvar comparação",
+  "professional.remove": "Remover comparação",
+  "professional.notice": "Valores transcritos pelo usuário, referentes ao mesmo exame e não autenticados pelo aplicativo. A diferença não determina qual avaliação está correta e não altera a estimativa da IA.",
+  "professional.sameExamError": "Confirme que a avaliação se refere à mesma radiografia e à mesma data de exame.",
+  "professional.ageError": "Informe anos completos de 0 a 20 e meses adicionais de 0 a 11, com total de até 20 anos. Use zero quando necessário.",
+  "professional.fieldsError": "Informe o método (até 80 caracteres) e o profissional ou serviço de origem (até 120 caracteres).",
+  "professional.dateError": "Informe uma data de avaliação válida, entre a data do exame e hoje.",
+  "result.scaleNote": "Escala descritiva das idades, sem faixa de normalidade.",
+  "result.networkNote":
+    "A concordância entre as redes não mede a precisão individual.",
   "result.months": "{months} meses · média das três redes",
   "result.noChrono": "Não informada",
   "result.examOn": "Exame em {date}",
@@ -215,8 +248,7 @@ const pt = {
     "Não foi possível ler o DICOM. Use um arquivo DICOM Part 10 original, PNG ou TIFF.",
   "decode.dicomMultiframe":
     "DICOM multiframe: exporte uma única radiografia para analisar.",
-  "decode.dicomMonochrome":
-    "Use um DICOM monocromático de radiografia da mão.",
+  "decode.dicomMonochrome": "Use um DICOM monocromático de radiografia da mão.",
   "decode.dicomChannels": "DICOM com múltiplos canais não suportado.",
   "decode.dicomJpegSize": "Dimensões DICOM e JPEG incompatíveis.",
   "decode.dicomBits":
@@ -256,7 +288,7 @@ const pt = {
   "pdf.imageSizeLabel": "Imagem analisada",
   "pdf.radiograph": "Radiografia analisada",
   "pdf.radiographCaption":
-    "Recorte enviado às redes, já orientado. A imagem não foi enviada a nenhum servidor.",
+    "Recorte orientado, antes do ajuste de histograma e do redimensionamento. A imagem não foi enviada a nenhum servidor.",
   "pdf.technical": "Execução",
   "pdf.ensembleMean": "Média do ensemble",
   "pdf.networkOutput": "Rede {index}",
@@ -271,7 +303,7 @@ const pt = {
     "Decodificação local, recorte manual, ajuste de histograma, interpolação bilinear, padding 512×512.",
   "pdf.references": "Referências e créditos",
   "pdf.refModel":
-    "Modelo ianpan/bone-age, criado e treinado por Ian Pan — huggingface.co/ianpan/bone-age",
+    "Modelo ianpan/bone-age, de Ian Pan — huggingface.co/ianpan/bone-age. Estimativa por IA a partir da imagem e do sexo informado; não é uma leitura manual pelos métodos Greulich–Pyle ou Tanner–Whitehouse.",
   "pdf.refArchitecture":
     "Arquitetura ConvNeXtV2-tiny, ensemble de três redes, 84,1 M de parâmetros.",
   "pdf.refDataset":
@@ -299,7 +331,7 @@ const pt = {
   "report.notComputed": "não calculada",
   "report.monthsValue": "{months} meses",
   "report.disclaimer":
-    "Resultado experimental. Não é um laudo nem estabelece diagnóstico. O erro médio publicado não é um intervalo de confiança individual.",
+    "Resultado experimental. Não é um laudo nem estabelece diagnóstico. O erro médio publicado e a concordância entre redes não são um intervalo de confiança individual. A interpretação clínica depende de referências por sexo e idade, crescimento, puberdade e histórico do paciente; esses dados clínicos não são avaliados pelo modelo.",
   "report.privacy": "Nenhuma imagem ou dado do exame foi enviado a servidores.",
 } as const;
 
@@ -371,7 +403,7 @@ const en: Record<Key, string> = {
   "form.examDate": "Examination date",
   "form.chrono": "Age on the examination date",
   "form.confirm":
-    "I confirm the crop contains the <strong>left hand in PA view</strong>, fingers up and wrist visible.",
+    "I confirm the crop contains the <strong>left hand in PA view</strong>, all five complete fingers pointing upward and the wrist visible.",
   "form.submit": 'Estimate bone age <span aria-hidden="true">→</span>',
   "form.cancel": "Cancel processing",
   "form.clinicalNote":
@@ -396,7 +428,8 @@ const en: Record<Key, string> = {
     "First use downloads about 340 MB. After that, the cached weights are reused.",
   "model.download": "Download model",
   "model.clearCache": "Clear cache",
-  "model.clearCacheTitle": "Delete only the public weights stored in this browser",
+  "model.clearCacheTitle":
+    "Delete only the public weights stored in this browser",
   "model.ready":
     "Download complete. Weights ready for local computation; caching depends on browser storage.",
   "model.executed":
@@ -410,10 +443,44 @@ const en: Record<Key, string> = {
   "result.estimated": "Estimated bone age",
   "result.chrono": "Chronological age",
   "result.difference": "Estimated difference",
-  "result.differenceNote": "Descriptive comparison, not a diagnostic classification.",
+  "result.differenceNote":
+    "Descriptive comparison, not a diagnostic classification.",
   "result.note":
     "The result depends on image quality, orientation and crop. The difference between ages, on its own, does not establish abnormally delayed or advanced maturation.",
   "result.details": "Local execution details",
+  "review.open": "Enlarge and inspect",
+  "review.title": "Inspect the image",
+  "review.close": "Close",
+  "review.help": "Check the left hand in PA, all five complete fingers and the wrist. Check that the fingers point upward and the crop excludes no structures. This is your visual check; the app does not validate anatomy.",
+  "review.crop": "Selected crop",
+  "review.full": "Full image",
+  "review.zoom": "Zoom",
+  "review.fit": "Fit to screen",
+  "review.pan": "Enlarged image. Scroll to explore.",
+  "review.footnote": "To rotate or adjust the crop, close this window and use the image controls. Zooming does not change the analysis data.",
+  "professional.entry": "Add or edit a professional assessment · optional",
+  "professional.heading": "Comparison with supplied professional assessment",
+  "professional.help": "If you have an assessment of this radiograph, enter its bone age and identify its source. These data stay in this session and are included in the PDF after saving.",
+  "professional.ageLabel": "Supplied bone age",
+  "professional.differenceLabel": "Difference: AI − supplied assessment",
+  "professional.years": "Whole years",
+  "professional.months": "Additional months",
+  "professional.method": "Reported method",
+  "professional.methodHelp": "E.g. Greulich–Pyle, TW3 or the system name. If absent, enter “not provided”.",
+  "professional.source": "Source professional or service",
+  "professional.date": "Assessment date",
+  "professional.sameExam": "I confirm this assessment refers to the same radiograph and examination date shown above.",
+  "professional.save": "Save comparison",
+  "professional.remove": "Remove comparison",
+  "professional.notice": "User-transcribed values for the same examination, not authenticated by the app. The difference does not establish which assessment is correct and does not change the AI estimate.",
+  "professional.sameExamError": "Confirm the assessment refers to the same radiograph and examination date.",
+  "professional.ageError": "Enter whole years from 0 to 20 and additional months from 0 to 11, totalling no more than 20 years. Enter zero where needed.",
+  "professional.fieldsError": "Enter the method (up to 80 characters) and source professional or service (up to 120 characters).",
+  "professional.dateError": "Enter a valid assessment date between the examination date and today.",
+  "result.scaleNote":
+    "Descriptive age scale, without a normal reference range.",
+  "result.networkNote":
+    "Agreement between networks does not measure individual accuracy.",
   "result.months": "{months} months · mean of the three networks",
   "result.noChrono": "Not provided",
   "result.examOn": "Examined on {date}",
@@ -477,7 +544,8 @@ const en: Record<Key, string> = {
   "msg.readyNotice":
     "Download complete. You can now open a radiograph and run the model.",
   "msg.cancelled": "Processing cancelled. No partial result was presented.",
-  "msg.cacheCleared": "The model weights were removed from this browser's cache.",
+  "msg.cacheCleared":
+    "The model weights were removed from this browser's cache.",
   "msg.cacheBlocked": "The browser does not allow cache access in this mode.",
   "msg.updateAvailable": "A new version of the site is available.",
   "msg.updateNow": "Update now",
@@ -551,7 +619,7 @@ const en: Record<Key, string> = {
   "pdf.imageSizeLabel": "Analysed image",
   "pdf.radiograph": "Analysed radiograph",
   "pdf.radiographCaption":
-    "The crop submitted to the networks, already oriented. The image was never sent to a server.",
+    "Oriented crop, before histogram matching and resizing. The image was never sent to a server.",
   "pdf.technical": "Execution",
   "pdf.ensembleMean": "Ensemble mean",
   "pdf.networkOutput": "Network {index}",
@@ -566,7 +634,7 @@ const en: Record<Key, string> = {
     "Local decoding, manual crop, histogram matching, bilinear interpolation, 512×512 padding.",
   "pdf.references": "References and credits",
   "pdf.refModel":
-    "Model ianpan/bone-age, created and trained by Ian Pan — huggingface.co/ianpan/bone-age",
+    "Model ianpan/bone-age, by Ian Pan — huggingface.co/ianpan/bone-age. AI estimate from the image and the supplied sex; not a manual Greulich–Pyle or Tanner–Whitehouse assessment.",
   "pdf.refArchitecture":
     "ConvNeXtV2-tiny architecture, three-network ensemble, 84.1M parameters.",
   "pdf.refDataset":
@@ -594,7 +662,7 @@ const en: Record<Key, string> = {
   "report.notComputed": "not computed",
   "report.monthsValue": "{months} months",
   "report.disclaimer":
-    "Experimental result. It is not a report and establishes no diagnosis. The published mean error is not an individual confidence interval.",
+    "Experimental result. It is not a medical report and establishes no diagnosis. The published mean error and agreement between networks are not an individual confidence interval. Clinical interpretation depends on sex- and age-specific references, growth, puberty and patient history; the model does not assess this clinical context.",
   "report.privacy": "No image or examination datum was sent to any server.",
 };
 

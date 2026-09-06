@@ -6,7 +6,10 @@ import {
   validateCrop,
 } from "./processing";
 import type { Crop, GrayImage, Result } from "./types";
-import { buildReportPdf, type ReportImage, type ReportLabels } from "./report";
+import { buildReportPdf, type ReportInput, type ReportLabels } from "./report";
+import { renderReport } from "./report-view";
+import { createImageReview } from "./image-review";
+import { readProfessionalAssessment } from "./professional";
 import {
   detectLang,
   LANG_STORAGE,
@@ -48,11 +51,12 @@ let result: Result | undefined;
 let busy = false,
   fileGeneration = 0;
 let dragging: { x: number; y: number } | undefined;
-const number = (n: number, digits = 1) =>
-  n.toLocaleString(t("app.locale"), {
-    maximumFractionDigits: digits,
-    minimumFractionDigits: digits,
-  });
+const imageReview = createImageReview(() => {
+  if (!image || busy || !validateCrop(crop, image.width, image.height)) return undefined;
+  return { source, crop };
+});
+for (const id of ["review-image", "review-result-image"])
+  el(id).addEventListener("click", () => imageReview.open());
 const ageText = (months: number) => {
   const rounded = Math.round(months),
     years = Math.floor(rounded / 12),
@@ -83,7 +87,12 @@ function status(key: Key) {
   el("model-status").textContent = t(key);
 }
 function invalidateResult() {
+  imageReview.close();
   result = undefined;
+  el<HTMLFormElement>("professional-form").reset();
+  el<HTMLDetailsElement>("professional-entry").open = false;
+  el("professional-error").hidden = true;
+  el("professional-remove").hidden = true;
   el("result").hidden = true;
   el("step-3").classList.remove("active");
 }
@@ -119,6 +128,7 @@ function setBusy(value: boolean) {
     "full-crop",
     "replace",
     "demo",
+    "review-image",
   ])
     el<HTMLButtonElement>(id).disabled = value;
   for (const id of ["x0", "y0", "x1", "y1"])
@@ -473,40 +483,21 @@ const resultChrono = (r: Result) => {
   }
 };
 function showResult(r: Result, scroll = false) {
-  el("result-age").textContent = ageText(r.months);
-  el("result-months").textContent = t("result.months", {
-    months: number(r.months, 2),
-  });
-  const chrono = resultChrono(r);
-  el("result-chrono").textContent =
-    chrono === undefined ? t("result.noChrono") : ageText(chrono);
-  el("result-date").textContent = t("result.examOn", {
-    date: localDate(r.examDate),
-  });
-  const diff = chrono === undefined ? undefined : r.months - chrono;
-  el("result-difference").textContent =
-    diff === undefined
-      ? "—"
-      : t("result.differenceMonths", {
-          sign: diff >= 0 ? "+" : "−",
-          months: number(Math.abs(diff)),
-        });
-  el("execution-details").textContent = t("result.execution", {
-    model: r.model,
-    revision: r.revision,
-    seconds: number(r.seconds),
-    folds: r.folds.map((m) => number(m, 4)).join(" / "),
-    crop: Object.values(r.crop).join(", "),
-    sex: t(r.sex === "male" ? "sex.male" : "sex.female"),
-  });
+  const radiograph = analysedCanvas(r);
+  if (!radiograph) return;
+  renderReport(reportInput(r, radiograph), radiograph);
+  el("professional-remove").hidden = !r.professional;
+  const professionalDate = el<HTMLInputElement>("professional-date");
+  professionalDate.min = r.examDate;
+  professionalDate.max = today();
   el("result").hidden = false;
   el("step-3").classList.add("active");
-  if (scroll) el("result").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (scroll)
+    el("result").scrollIntoView({ behavior: "smooth", block: "start" });
 }
-// The radiograph as the networks saw it: oriented, cropped, bounded in size so
-// the report stays a reasonable file.
+// Shared screen/PDF preview: oriented crop before histogram matching/resizing.
 const REPORT_IMAGE_MAX = 1400;
-async function analysedJpeg(r: Result): Promise<ReportImage | undefined> {
+function analysedCanvas(r: Result): HTMLCanvasElement | undefined {
   const width = r.crop.x1 - r.crop.x0,
     height = r.crop.y1 - r.crop.y0;
   if (!source.width || width < 1 || height < 1) return undefined;
@@ -527,18 +518,43 @@ async function analysedJpeg(r: Result): Promise<ReportImage | undefined> {
     out.width,
     out.height,
   );
-  const blob = await new Promise<Blob | null>((resolve) =>
-    out.toBlob(resolve, "image/jpeg", 0.92),
-  );
-  if (!blob) return undefined;
+  return out;
+}
+function reportInput(r: Result, radiograph: HTMLCanvasElement): ReportInput {
+  const chrono = resultChrono(r);
   return {
-    jpeg: new Uint8Array(await blob.arrayBuffer()),
-    width: out.width,
-    height: out.height,
+    months: r.months,
+    folds: [...r.folds],
+    seconds: r.seconds,
+    modelId: r.model,
+    modelRevision: r.revision,
+    sex: r.sex,
+    dateOfBirth: r.dob,
+    examinationDate: r.examDate,
+    chronologicalMonths: chrono,
+    crop: { ...r.crop },
+    fileName: filename,
+    locale: t("app.locale"),
+    image: {
+      jpeg: new Uint8Array(),
+      width: radiograph.width,
+      height: radiograph.height,
+    },
+    labels: reportLabels(r, chrono),
+    professional: r.professional ? { ...r.professional } : undefined,
   };
 }
 function reportLabels(r: Result, chrono: number | undefined): ReportLabels {
   return {
+    professionalComparison: {
+      heading: t("professional.heading"),
+      ageLabel: t("professional.ageLabel"),
+      differenceLabel: t("professional.differenceLabel"),
+      sourceLabel: t("professional.source"),
+      methodLabel: t("professional.method"),
+      dateLabel: t("professional.date"),
+      notice: t("professional.notice"),
+    },
     productName: t("pdf.productName"),
     experimentalBadge: t("workspace.badge"),
     documentTitle: t("pdf.title"),
@@ -596,37 +612,62 @@ function reportLabels(r: Result, chrono: number | undefined): ReportLabels {
     imageSizeValueTemplate: t("pdf.imageSizeValue"),
   };
 }
+el("professional-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!result) return;
+  el("professional-error").hidden = true;
+  try {
+    result.professional = readProfessionalAssessment({
+      years: el<HTMLInputElement>("professional-years").value,
+      months: el<HTMLInputElement>("professional-months").value,
+      method: el<HTMLInputElement>("professional-method").value,
+      source: el<HTMLInputElement>("professional-source").value,
+      date: el<HTMLInputElement>("professional-date").value,
+      sameExam: el<HTMLInputElement>("professional-same-exam").checked,
+    }, result.examDate, today());
+    showResult(result);
+    el<HTMLDetailsElement>("professional-entry").open = false;
+    el("professional-entry-summary").focus();
+  } catch (cause) {
+    el("professional-error").textContent = cause instanceof Error ? cause.message : t("professional.fieldsError");
+    el("professional-error").hidden = false;
+  }
+});
+el("professional-remove").addEventListener("click", () => {
+  if (!result) return;
+  result.professional = undefined;
+  el<HTMLFormElement>("professional-form").reset();
+  el("professional-error").hidden = true;
+  showResult(result);
+});
 el("download-report").addEventListener("click", () => {
   if (!result) return;
-  const r = result,
-    chrono = resultChrono(r);
+  const r = result;
+  const radiograph = analysedCanvas(r);
+  if (!radiograph) return error(t("msg.reportFailed"));
+  // Snapshot metadata, language and crop before the asynchronous JPEG export.
+  const input = reportInput(r, radiograph);
+  const downloadName = `${t("report.filename")}-${r.examDate}.pdf`;
   void (async () => {
     try {
-      const image = await analysedJpeg(r);
-      if (!image) throw new Error("no image");
+      const blob = await new Promise<Blob | null>((resolve) =>
+        radiograph.toBlob(resolve, "image/jpeg", 0.92),
+      );
+      if (!blob) throw new Error("no image");
       const pdf = buildReportPdf({
-        months: r.months,
-        folds: r.folds,
-        seconds: r.seconds,
-        modelId: r.model,
-        modelRevision: r.revision,
-        sex: r.sex,
-        dateOfBirth: r.dob,
-        examinationDate: r.examDate,
-        chronologicalMonths: chrono,
-        crop: r.crop,
-        fileName: filename,
-        locale: t("app.locale"),
+        ...input,
         generatedAt: new Date().toISOString(),
-        image,
-        labels: reportLabels(r, chrono),
+        image: {
+          ...input.image,
+          jpeg: new Uint8Array(await blob.arrayBuffer()),
+        },
       });
       const url = URL.createObjectURL(
         new Blob([pdf], { type: "application/pdf" }),
       );
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${t("report.filename")}-${r.examDate}.pdf`;
+      a.download = downloadName;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
